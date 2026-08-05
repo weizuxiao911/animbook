@@ -18,6 +18,11 @@ import { IMainLayoutService } from '@opensumi/ide-main-layout/lib/common';
 export function LayoutComponent(): React.ReactElement {
   const layoutService = useInjectable<IMainLayoutService>(IMainLayoutService);
 
+  // 默认展开左侧资源管理器 (toggleSlot 幂等, 用户手动折叠仍可覆盖)
+  useEffect(() => {
+    layoutService.toggleSlot(SlotLocation.left, true);
+  }, []);
+
   return (
     <React.Fragment>
       <BoxPanel direction="top-to-bottom">
