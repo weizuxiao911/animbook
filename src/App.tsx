@@ -12,6 +12,7 @@ import { ActionsModule } from './extensions/actions';
 import { WelcomeModule } from './extensions/welcome';
 import { PdfReaderModule } from './extensions/pdf';
 import { BinaryModule } from './extensions/binary';
+import { HtmlModule } from './extensions/html';
 import { preferences } from './config/preferences';
 import { runtimeConfig } from './config/runtime';
 import { FsCommandsModule, getWorkspaceDir } from './commands/fs';
@@ -92,6 +93,7 @@ export const App: React.FC = () => {
           WelcomeModule,
           PdfReaderModule,
           BinaryModule,
+          HtmlModule,
           AssistantModule,
           ActionsModule,
         ],
