@@ -70,29 +70,37 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
     setRefreshTick((t) => t + 1);
   }, [uriStr]);
 
-  // 加载文件 (OpenSumi file service, 内部 OverlayFS → 宿主)
+  // 重新加载文件 (OpenSumi file service, 内部 OverlayFS → 宿主); 刷新按钮/uri 变化共用.
+  // 发起后若 uri 已切换, 丢弃结果 (防旧请求覆盖新文件内容)
+  const uriStrRef = useRef(uriStr);
+  useEffect(() => { uriStrRef.current = uriStr; }, [uriStr]);
+
+  const reload = useCallback(async () => {
+    const target = uriStr;
+    if (!target) return;
+    setLoading(true);
+    setError('');
+    try {
+      const { content } = await fileService.readFile(target);
+      const text = typeof (content as any)?.toString === 'function'
+        ? (content as any).toString()
+        : String(content);
+      if (uriStrRef.current !== target) return; // uri 已切换, 丢弃
+      loadedUriRef.current = target;
+      setHtml(text);
+    } catch (e) {
+      if (uriStrRef.current !== target) return;
+      setError(String((e as any)?.message || e));
+    } finally {
+      if (uriStrRef.current === target) setLoading(false);
+    }
+  }, [uriStr, fileService]);
+
+  // 首次加载
   useEffect(() => {
     if (!uriStr) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { content } = await fileService.readFile(uriStr);
-        if (cancelled) return;
-        const text = typeof (content as any)?.toString === 'function'
-          ? (content as any).toString()
-          : String(content);
-        loadedUriRef.current = uriStr;
-        setHtml(text);
-        setError('');
-      } catch (e) {
-        if (cancelled) return;
-        setError(String((e as any)?.message || e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [uriStr, fileService]);
+    void reload();
+  }, [uriStr, reload]);
 
   // 编辑模式: 创建 monaco editor (仅加载完成后, 绑定当前 uri)
   useEffect(() => {
@@ -179,7 +187,7 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
         <span className="ab-html__name">📄 {fileName}</span>
         <span className="ab-html__spacer" />
         {savedTip && <span className="ab-html__saved">✓ 已保存</span>}
-        <button className="ab-html__btn" onClick={() => setRefreshTick((t) => t + 1)} disabled={mode !== 'preview'}>⟳ 刷新</button>
+        <button className="ab-html__btn" onClick={() => void reload()} disabled={mode !== 'preview'}>⟳ 刷新</button>
         {mode === 'preview'
           ? toolbarBtn(true, '👁 预览', () => {})
           : toolbarBtn(false, '👁 预览', switchToPreview)}

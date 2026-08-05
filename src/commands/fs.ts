@@ -230,28 +230,15 @@ export async function fsList(idePath: string): Promise<FsEntry[]> {
 
 /** 读文件 (IDE 相对路径), 返回 utf-8 字符串 */
 export async function fsRead(idePath: string): Promise<string> {
-  const client = getOpencodeClient() as any;
-  if (!client) return '';
+  // v2 SDK fs.read 返回空对象 (500/空响应均不可用), 直接走 v1 HTTP 直连
+  // (fsReadBinaryAbsolute: GET /api/fs/read/{name}?directory=...), PDF 同款通道.
   try {
     const hostPath = await toHostPath(idePath);
-    const { data, error } = await client.v2.fs.read({
-      location: { directory: hostPath },
-    } as any);
-    if (error) throw error;
-    if (!data) return '';
-    if (typeof data === 'string') return data;
-    if (data instanceof Blob) return await data.text();
-    if (data instanceof ArrayBuffer) return new TextDecoder().decode(data);
-    // fallback: PTY cat (某些 opencode 版本 fs.read 行为不一)
-    return await runShell(`cat ${shellQuote(hostPath)}`);
+    const bytes = await fsReadBinaryAbsolute(hostPath);
+    return new TextDecoder().decode(bytes);
   } catch (err) {
-    console.warn('[fs] read failed, fallback to cat:', idePath, err);
-    try {
-      const hostPath = await toHostPath(idePath);
-      return await runShell(`cat ${shellQuote(hostPath)}`);
-    } catch {
-      return '';
-    }
+    console.warn('[fs] read failed:', idePath, err);
+    return '';
   }
 }
 
