@@ -82,9 +82,9 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
     return () => { cancelled = true; };
   }, [uriStr, fileService]);
 
-  // 编辑模式: 创建 monaco editor
+  // 编辑模式: 创建 monaco editor (仅加载完成后)
   useEffect(() => {
-    if (mode !== 'edit' || !editRef.current) return;
+    if (mode !== 'edit' || !editRef.current || loading || error) return;
     const editor = (monaco as any).editor.create(editRef.current, {
       value: htmlRef.current,
       language: 'html',
@@ -104,10 +104,15 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
       editorRef.current = null;
       editor.dispose();
     };
-  }, [mode]);
+  }, [mode, loading, error]);
 
   // 保存 (走 OpenSumi file service → OverlayFS 写层 → onDidChangeFiles 钩子 → 宿主机)
+  // 未加载完成/加载失败时禁止保存, 防止空内容覆盖原文件
   const handleSave = useCallback(async (content: string) => {
+    if (loading || error) {
+      console.warn('[html] skip save: not loaded yet', { loading, error });
+      return;
+    }
     try {
       const stat = await fileService.getFileStat(uriStr);
       if (!stat) throw new Error('file stat not found');
@@ -119,7 +124,7 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
       setSavedTip(true);
       setTimeout(() => setSavedTip(false), 1200);
     }
-  }, [uriStr, fileService]);
+  }, [uriStr, fileService, loading, error]);
 
   const switchToEdit = useCallback(() => {
     if (editorRef.current) {
