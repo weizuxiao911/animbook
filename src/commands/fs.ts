@@ -19,9 +19,11 @@
  *   2) FsCommandsModule            — OpenSumi CommandContribution (animbook.fs.* 命令)
  */
 
-import { Injectable } from '@opensumi/di';
-import { Domain, CommandContribution, CommandRegistry } from '@opensumi/ide-core-common';
-import { BrowserModule } from '@opensumi/ide-core-browser';
+import { Injectable, Autowired } from '@opensumi/di';
+import { Domain, CommandContribution, CommandRegistry, FileChangeType } from '@opensumi/ide-core-common';
+import { BrowserModule, ClientAppContribution } from '@opensumi/ide-core-browser';
+import { IFileServiceClient } from '@opensumi/ide-file-service';
+import { WORKSPACE_ROOT } from '@codeblitzjs/ide-core';
 
 import { getOpencodeClient } from './sandbox';
 
@@ -329,11 +331,11 @@ export async function fsDelete(idePath: string): Promise<boolean> {
   }
 }
 
-/** mkdir -p */
+/** mkdir -p (若同名文件存在先删除, 兼容历史错同步; 分号避免目录时短路) */
 export async function fsMkdir(idePath: string): Promise<boolean> {
   try {
     const hostPath = await toHostPath(idePath);
-    await runShell(`mkdir -p ${shellQuote(hostPath)}`);
+    await runShell(`rm -f ${shellQuote(hostPath)}; mkdir -p ${shellQuote(hostPath)}`);
     return true;
   } catch (err) {
     console.warn('[fs] mkdir failed:', idePath, err);
@@ -396,6 +398,23 @@ export const FS_CMD = {
   FIND: 'animbook.fs.find',
 } as const;
 
+/**
+ * FsServiceBridgeContribution — 把 OpenSumi file service 暴露给 runtime 钩子
+ *
+ * runtime.ts 的 onDidCreateFiles 需要查询 FileStat 区分目录/文件,
+ * 静态配置拿不到 injector, 这里在 onDidStart 挂到 window 供其使用.
+ */
+@Injectable()
+@Domain(ClientAppContribution)
+export class FsServiceBridgeContribution implements ClientAppContribution {
+  @Autowired(IFileServiceClient)
+  private readonly fileService!: IFileServiceClient;
+
+  onDidStart(): void {
+    (window as any).__ANIMBOOK_FILE_SERVICE__ = this.fileService;
+  }
+}
+
 @Injectable()
 @Domain(CommandContribution)
 export class FsCommandsContribution implements CommandContribution {
@@ -417,6 +436,6 @@ export class FsCommandsContribution implements CommandContribution {
 
 @Injectable()
 export class FsCommandsModule extends BrowserModule {
-  providers = [FsCommandsContribution];
-  contributionProvider = CommandContribution;
+  providers = [FsCommandsContribution, FsServiceBridgeContribution];
+  contributionProvider = [CommandContribution, ClientAppContribution];
 }

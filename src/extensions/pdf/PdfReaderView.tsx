@@ -53,17 +53,38 @@ interface Props {
   };
 }
 
+/**
+ * 解析 OpenSumi 虚拟路径 → workspace 内相对路径.
+ *
+ * OpenSumi 可能给两种形态:
+ *   - 虚拟 FS: "/{workspace根目录名}/机器学习2.pdf"
+ *   - 绝对路径: "/Users/.../workspace/机器学习2.pdf"
+ * 前缀 = 工作区根目录 (来自 opencode /ai/path 的 directory 字段), 不硬编码.
+ * 归一为相对路径后, fsRead/fsWrite 内部 toHostPath 拼回绝对路径.
+ */
 function resolveHostPath(resource: any): string {
   const uri = resource?.uri;
   if (!uri) return '';
-  if (uri.codeUri?.fsPath) return uri.codeUri.fsPath;
-  if (typeof uri.path === 'string') return uri.path;
-  if (typeof uri.toString === 'function') {
+  let p = '';
+  if (uri.codeUri?.fsPath) p = uri.codeUri.fsPath;
+  else if (typeof uri.path === 'string') p = uri.path;
+  else if (typeof uri.toString === 'function') {
     const s = uri.toString();
-    if (s.startsWith('file://')) return decodeURIComponent(s.slice('file://'.length));
-    return s;
+    if (s.startsWith('file://')) p = decodeURIComponent(s.slice('file://'.length));
+    else p = s;
   }
-  return '';
+  const root = (window as any).__ANIMBOOK_FS_API__?.getWorkspaceDirSync?.();
+  if (root) {
+    const rootName = String(root).split('/').pop();
+    if (rootName && p.startsWith(`/${rootName}/`)) {
+      p = p.slice(rootName.length + 1);          // 虚拟路径: 剥根目录名
+    } else if (p.startsWith(`${root}/`)) {
+      p = p.slice(root.length + 1);              // 绝对路径: 剥根目录
+    } else if (p === root) {
+      p = '';
+    }
+  }
+  return p;
 }
 
 async function openPdfFromBytes(bytes: Uint8Array): Promise<any> {
@@ -249,9 +270,9 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
       setProgress({ loaded: 0, total: 0 });
       try {
         const fsApi = (window as any).__ANIMBOOK_FS_API__;
-        if (!fsApi?.readBinaryAbsolute) throw new Error('FS API not ready');
+        if (!fsApi?.readBinary) throw new Error('FS API not ready');
         if (!hostPath) throw new Error('无法解析文件路径');
-        const bytes = await fsApi.readBinaryAbsolute(hostPath, {
+        const bytes = await fsApi.readBinary(hostPath, {
           signal: ac.signal,
           onProgress: (loaded: number, total: number) => {
             if (!cancelled) setProgress({ loaded, total });

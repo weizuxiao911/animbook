@@ -5,10 +5,14 @@
  *   - 预览模式: iframe 渲染 (sandbox=allow-scripts), 支持刷新
  *   - 编辑模式: monaco editor (html language), 支持 Cmd/Ctrl+S 保存 + 切换回预览自动更新
  *
- * 读取走 FS API (__ANIMBOOK_FS_API__.readBinaryAbsolute), 保存走 fsWrite (PTY base64 通道).
+ * 读写走 OpenSumi file service (IFileServiceClient):
+ *   插件 → OpenSumi (OverlayFS) → onDidChangeFiles 钩子 → 宿主机 (opencode)
+ * 不再直接使用 __ANIMBOOK_FS_API__ 的 PTY 通道.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useInjectable } from '@opensumi/ide-core-browser';
+import { IFileServiceClient } from '@opensumi/ide-file-service';
 
 // @ts-ignore — monaco fork standalone api
 import * as monaco from '@opensumi/monaco-editor-core/esm/vs/editor/editor.api';
@@ -21,38 +25,27 @@ interface Props {
 
 type Mode = 'preview' | 'edit';
 
-const FS = () => (window as any).__ANIMBOOK_FS_API__;
-
-function resolveHostPath(resource: any): string {
+function getUriString(resource: any): string {
   const uri = resource?.uri;
   if (!uri) return '';
-  if (uri.codeUri?.fsPath) return uri.codeUri.fsPath;
-  if (typeof uri.path === 'string') return uri.path;
-  if (typeof uri.toString === 'function') {
-    const s = uri.toString();
-    if (s.startsWith('file://')) return decodeURIComponent(s.slice('file://'.length));
-    return s;
-  }
+  if (typeof uri.toString === 'function') return uri.toString(true);
+  if (uri.codeUri?.fsPath) return `file://${uri.codeUri.fsPath}`;
   return '';
 }
 
-function getFileName(hostPath: string): string {
-  const parts = String(hostPath).split('/');
-  return parts[parts.length - 1] || String(hostPath);
-}
-
-/** 绝对 hostPath → workspace 相对路径 (fsWrite 入参) */
-function toIdePath(hostPath: string): string {
-  const root = FS()?.getWorkspaceDirSync?.();
-  if (root && hostPath.startsWith(root)) {
-    return hostPath.slice(root.length).replace(/^\/+/, '');
-  }
-  return hostPath;
+/**
+ * 从 URI 字符串取文件名 (仅展示用)
+ */
+function getFileName(uriStr: string): string {
+  const clean = uriStr.replace(/^file:\/\//, '').split('?')[0];
+  const parts = clean.split('/');
+  return parts[parts.length - 1] || clean;
 }
 
 export const HtmlViewer: React.FC<Props> = ({ resource }) => {
-  const hostPath = useMemo(() => resolveHostPath(resource), [resource]);
-  const fileName = useMemo(() => getFileName(hostPath), [hostPath]);
+  const fileService = useInjectable<IFileServiceClient>(IFileServiceClient);
+  const uriStr = useMemo(() => getUriString(resource), [resource]);
+  const fileName = useMemo(() => getFileName(uriStr), [uriStr]);
 
   const [html, setHtml] = useState('');
   const [mode, setMode] = useState<Mode>('preview');
@@ -66,15 +59,18 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
   const htmlRef = useRef('');
   useEffect(() => { htmlRef.current = html; }, [html]);
 
-  // 加载文件
+  // 加载文件 (OpenSumi file service, 内部 OverlayFS → 宿主)
   useEffect(() => {
-    if (!hostPath) return;
+    if (!uriStr) return;
     let cancelled = false;
     (async () => {
       try {
-        const bytes = await FS()?.readBinaryAbsolute(hostPath);
+        const { content } = await fileService.readFile(uriStr);
         if (cancelled) return;
-        setHtml(new TextDecoder().decode(bytes));
+        const text = typeof (content as any)?.toString === 'function'
+          ? (content as any).toString()
+          : String(content);
+        setHtml(text);
         setError('');
       } catch (e) {
         if (cancelled) return;
@@ -84,7 +80,7 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
       }
     })();
     return () => { cancelled = true; };
-  }, [hostPath]);
+  }, [uriStr, fileService]);
 
   // 编辑模式: 创建 monaco editor
   useEffect(() => {
@@ -110,12 +106,20 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
     };
   }, [mode]);
 
+  // 保存 (走 OpenSumi file service → OverlayFS 写层 → onDidChangeFiles 钩子 → 宿主机)
   const handleSave = useCallback(async (content: string) => {
-    const ok = await FS()?.write(toIdePath(hostPath), content);
-    setSavedTip(true);
-    setTimeout(() => setSavedTip(false), 1200);
-    if (ok) setHtml(content);
-  }, [hostPath]);
+    try {
+      const stat = await fileService.getFileStat(uriStr);
+      if (!stat) throw new Error('file stat not found');
+      await fileService.setContent(stat, content);
+      setHtml(content);
+    } catch (e) {
+      console.warn('[html] save failed:', uriStr, e);
+    } finally {
+      setSavedTip(true);
+      setTimeout(() => setSavedTip(false), 1200);
+    }
+  }, [uriStr, fileService]);
 
   const switchToEdit = useCallback(() => {
     if (editorRef.current) {
