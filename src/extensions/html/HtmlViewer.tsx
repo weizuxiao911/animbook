@@ -57,7 +57,18 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
   const editRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<any>(null);
   const htmlRef = useRef('');
+  const loadedUriRef = useRef('');   // 已加载完成的 uri (防止旧内容/旧 editor 串台)
+  const editorUriRef = useRef('');   // editor 绑定的 uri
   useEffect(() => { htmlRef.current = html; }, [html]);
+
+  // uri 切换 (组件实例被 OpenSumi 复用时): 立即重置状态, 丢弃旧内容/旧 editor
+  useEffect(() => {
+    setMode('preview');
+    setHtml('');
+    setError('');
+    setLoading(true);
+    setRefreshTick((t) => t + 1);
+  }, [uriStr]);
 
   // 加载文件 (OpenSumi file service, 内部 OverlayFS → 宿主)
   useEffect(() => {
@@ -70,6 +81,7 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
         const text = typeof (content as any)?.toString === 'function'
           ? (content as any).toString()
           : String(content);
+        loadedUriRef.current = uriStr;
         setHtml(text);
         setError('');
       } catch (e) {
@@ -82,7 +94,7 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
     return () => { cancelled = true; };
   }, [uriStr, fileService]);
 
-  // 编辑模式: 创建 monaco editor (仅加载完成后)
+  // 编辑模式: 创建 monaco editor (仅加载完成后, 绑定当前 uri)
   useEffect(() => {
     if (mode !== 'edit' || !editRef.current || loading || error) return;
     const editor = (monaco as any).editor.create(editRef.current, {
@@ -97,20 +109,30 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
       tabSize: 2,
     });
     editorRef.current = editor;
+    editorUriRef.current = uriStr;
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       handleSave(editor.getValue());
     });
     return () => {
       editorRef.current = null;
+      editorUriRef.current = '';
       editor.dispose();
     };
-  }, [mode, loading, error]);
+  }, [mode, loading, error, uriStr]);
 
   // 保存 (走 OpenSumi file service → OverlayFS 写层 → onDidChangeFiles 钩子 → 宿主机)
-  // 未加载完成/加载失败时禁止保存, 防止空内容覆盖原文件
+  // 三重防呆: 未加载完成/加载失败不保存; editor 绑定的 uri 与当前 uri 不一致不保存
   const handleSave = useCallback(async (content: string) => {
     if (loading || error) {
       console.warn('[html] skip save: not loaded yet', { loading, error });
+      return;
+    }
+    if (loadedUriRef.current !== uriStr) {
+      console.warn('[html] skip save: uri mismatch', { loaded: loadedUriRef.current, current: uriStr });
+      return;
+    }
+    if (editorUriRef.current && editorUriRef.current !== uriStr) {
+      console.warn('[html] skip save: editor bound to other file', { bound: editorUriRef.current, current: uriStr });
       return;
     }
     try {
@@ -134,14 +156,14 @@ export const HtmlViewer: React.FC<Props> = ({ resource }) => {
   }, [handleSave]);
 
   const switchToPreview = useCallback(() => {
-    if (editorRef.current) {
+    if (editorRef.current && editorUriRef.current === uriStr) {
       handleSave(editorRef.current.getValue());
       setMode('preview');
       setRefreshTick((t) => t + 1);
     } else {
       setMode('preview');
     }
-  }, [handleSave]);
+  }, [handleSave, uriStr]);
 
   const toolbarBtn = (active: boolean, label: string, onClick: () => void) => (
     <button
