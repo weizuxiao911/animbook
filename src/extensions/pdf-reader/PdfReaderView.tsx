@@ -98,6 +98,8 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
   const [numPages, setNumPages] = useState(0);
   const [progress, setProgress] = useState({ loaded: 0, total: 0 });
   const [currentPage, setCurrentPage] = useState(1);
+  /** resize 触发重建的 tick (每次宽度变化 +1, 触发 effect 重跑) */
+  const [rebuildTick, setRebuildTick] = useState(0);
   /** 页码输入框 (非受控, 输入时不被滚动同步抢走) */
   const pageInputRef = useRef<HTMLInputElement>(null);
   /** 输入框是否聚焦中 (聚焦时不更新它的值) */
@@ -273,43 +275,62 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
     };
   }, [hostPath]);
 
-  // ---------- 建占位 + 挂 IntersectionObserver (滚动懒加载) ----------
+  // ---------- 重建占位 + 重渲染当前页 (供初始加载 / resize 复用) ----------
+  const rebuildViewer = useCallback(async () => {
+    if (!numPages) return;
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    const pdf = pdfDocRef.current;
+    if (!pdf) return;
+
+    // 算 fitScale (用第 1 页原生尺寸)
+    const firstPage = await pdf.getPage(1);
+    const base = firstPage.getViewport({ scale: 1 });
+    pageBaseRef.current = { width: base.width, height: base.height };
+    const containerW = Math.max(viewer.clientWidth, 60);
+    fitScaleRef.current = containerW / base.width;
+
+    // 清空, 建所有页占位 div (高度 = 每页自己的 页高×fitScale + 页间距)
+    viewer.innerHTML = '';
+    pageElsRef.current.clear();
+    renderedRef.current.clear();
+    const pageGap = 8;
+
+    for (let i = 1; i <= numPages; i++) {
+      const p = await pdf.getPage(i);
+      const pb = p.getViewport({ scale: 1 });
+      // 每页独立 fitScale: 宽度适配容器, 高度按该页比例
+      const fit = containerW / pb.width;
+      const pageH = pb.height * fit;
+      const div = document.createElement('div');
+      div.className = 'ab-pdf-page';
+      div.dataset['page'] = String(i);
+      div.style.cssText = `width:100%;height:${pageH}px;margin-bottom:${pageGap}px;`;
+      viewer.appendChild(div);
+      pageElsRef.current.set(i, div);
+    }
+
+    // 渲染当前页
+    void renderPage(currentPage);
+    syncPageDisplay(currentPage);
+  }, [numPages, currentPage, renderPage, syncPageDisplay]);
+
+  // ---------- 初始加载 + 挂 IntersectionObserver (滚动懒加载) ----------
   useEffect(() => {
     if (!numPages) return;
     const viewer = viewerRef.current;
     if (!viewer) return;
 
+    let io: IntersectionObserver | null = null;
+    let disposed = false;
+
     (async () => {
-      // 算 fitScale (用第 1 页原生尺寸)
-      const firstPage = await pdfDocRef.current.getPage(1);
-      const base = firstPage.getViewport({ scale: 1 });
-      pageBaseRef.current = { width: base.width, height: base.height };
-      const containerW = Math.max(viewer.clientWidth, 60);
-      fitScaleRef.current = containerW / base.width;
-
-      // 清空, 建所有页占位 div (高度 = 每页自己的 页高×fitScale + 页间距)
-      viewer.innerHTML = '';
-      pageElsRef.current.clear();
-      renderedRef.current.clear();
-      const pageGap = 8;
-
-      for (let i = 1; i <= numPages; i++) {
-        const p = await pdfDocRef.current.getPage(i);
-        const pb = p.getViewport({ scale: 1 });
-        // 每页独立 fitScale: 宽度适配容器, 高度按该页比例
-        const fit = containerW / pb.width;
-        const pageH = pb.height * fit;
-        const div = document.createElement('div');
-        div.className = 'ab-pdf-page';
-        div.dataset['page'] = String(i);
-        div.style.cssText = `width:100%;height:${pageH}px;margin-bottom:${pageGap}px;`;
-        viewer.appendChild(div);
-        pageElsRef.current.set(i, div);
-      }
+      await rebuildViewer();
+      if (disposed) return;
 
       // IntersectionObserver: 进入视口 → 渲染
-      // 页码取"可视区占比最大的页" (避免 200px 预加载余量导致页码漂移)
-      const io = new IntersectionObserver(
+      // 页码取"可视区占比最大的页" (避免 50% 预加载余量导致页码漂移)
+      io = new IntersectionObserver(
         (entries) => {
           let best: { i: number; ratio: number } | null = null;
           for (const e of entries) {
@@ -329,16 +350,33 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
         },
         { root: viewer, rootMargin: '50% 0px' },
       );
-      pageElsRef.current.forEach((el) => io.observe(el));
+      pageElsRef.current.forEach((el) => io!.observe(el));
 
-      // 首次渲染第 1 页 (立即显示)
-      void renderPage(1);
-      syncPageDisplay(1);
       setLoading(false);
-
-      return () => io.disconnect();
     })();
-  }, [numPages, renderPage, syncPageDisplay]);
+
+    // resize 后重新加载 (宽度变了, 占位/热区/画布全重建) — 防抖, 只在宽度变化时
+    let lastWidth = viewer.clientWidth;
+    let roTimer: ReturnType<typeof setTimeout> | null = null;
+    const ro = new ResizeObserver(() => {
+      const w = viewer.clientWidth;
+      if (Math.abs(w - lastWidth) < 2) return;
+      lastWidth = w;
+      if (roTimer) clearTimeout(roTimer);
+      roTimer = setTimeout(() => {
+        // 重建占位 (IO 会因节点重建失效, 这里重新触发整个 effect 重建)
+        setRebuildTick((n) => n + 1);
+      }, 200);
+    });
+    ro.observe(viewer);
+
+    return () => {
+      disposed = true;
+      io?.disconnect();
+      ro.disconnect();
+      if (roTimer) clearTimeout(roTimer);
+    };
+  }, [numPages, rebuildViewer, renderPage, syncPageDisplay, rebuildTick]);
 
   // ---------- 标注行为处理器 (modal / tab / terminal) ----------
   useEffect(() => {
