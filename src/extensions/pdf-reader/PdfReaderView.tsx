@@ -275,7 +275,7 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
     };
   }, [hostPath]);
 
-  // ---------- 重建占位 + 重渲染当前页 (供初始加载 / resize 复用) ----------
+  // ---------- 重建占位 + 一次性渲染所有页 (不懒加载, 避免滚动空白) ----------
   const rebuildViewer = useCallback(async () => {
     if (!numPages) return;
     const viewer = viewerRef.current;
@@ -290,11 +290,13 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
     const containerW = Math.max(viewer.clientWidth, 60);
     fitScaleRef.current = containerW / base.width;
 
-    // 清空, 建所有页占位 div (高度 = 每页自己的 页高×fitScale + 页间距)
+    // 清空, 建所有页 (占位 div + canvas + 标注热区)
+    const prevScrollTop = viewer.scrollTop;
     viewer.innerHTML = '';
     pageElsRef.current.clear();
     renderedRef.current.clear();
     const pageGap = 8;
+    const dpr = window.devicePixelRatio || 1;
 
     for (let i = 1; i <= numPages; i++) {
       const p = await pdf.getPage(i);
@@ -302,81 +304,159 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
       // 每页独立 fitScale: 宽度适配容器, 高度按该页比例
       const fit = containerW / pb.width;
       const pageH = pb.height * fit;
+
       const div = document.createElement('div');
       div.className = 'ab-pdf-page';
       div.dataset['page'] = String(i);
       div.style.cssText = `width:100%;height:${pageH}px;margin-bottom:${pageGap}px;`;
       viewer.appendChild(div);
       pageElsRef.current.set(i, div);
+
+      // 渲染 canvas (串行, 一次性全部渲染)
+      const renderScale = fit * dpr;
+      const viewport = p.getViewport({ scale: renderScale });
+      const canvas = document.createElement('canvas');
+      canvas.className = 'ab-pdf-canvas';
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      canvas.style.cssText = 'width:100%;height:100%;display:block;';
+      div.appendChild(canvas);
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) await p.render({ canvasContext: ctx, viewport }).promise;
+
+      // 标注热区
+      try {
+        const annots = await p.getAnnotations();
+        if (annots && annots.length > 0) {
+          const metas = annots
+            .map((a: any) => toAnnotMeta(a, i))
+            .filter((m: PdfAnnotMeta) => m.action && m.raw?.rect);
+          if (metas.length > 0) {
+            const overlay = document.createElement('div');
+            overlay.className = 'ab-pdf-annot-layer';
+            overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;';
+            div.appendChild(overlay);
+
+            const scaleX = canvas.width / canvas.clientWidth;
+            const scaleY = canvas.height / canvas.clientHeight;
+            const pageH0 = pb.height;
+            for (const meta of metas) {
+              const rect = meta.raw.rect as [number, number, number, number];
+              if (!rect || rect.length < 4) continue;
+              const [x1, y1, x2, y2] = rect;
+              const px1 = x1 * renderScale / scaleX;
+              const py1 = (pageH0 - y1) * renderScale / scaleY;
+              const px2 = x2 * renderScale / scaleX;
+              const py2 = (pageH0 - y2) * renderScale / scaleY;
+              const left = Math.min(px1, px2);
+              const top = Math.min(py1, py2);
+              const w = Math.abs(px2 - px1);
+              const h = Math.abs(py2 - py1);
+
+              const c: any = meta.raw?.color;
+              let r = 153, g = 153, b = 255;
+              if (c && c.length >= 3) {
+                r = Number(c[0]) || r;
+                g = Number(c[1]) || g;
+                b = Number(c[2]) || b;
+              }
+
+              const el = document.createElement('button');
+              el.className = 'ab-pdf-annot';
+              el.dataset['page'] = String(i);
+              el.dataset['annotId'] = meta.id;
+              // 存原始 canvas 内部像素坐标 (resize 后按新 scale 重算)
+              el.dataset['origLeft'] = String(left * scaleX);
+              el.dataset['origTop'] = String(top * scaleY);
+              el.dataset['origW'] = String(w * scaleX);
+              el.dataset['origH'] = String(h * scaleY);
+              el.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${w}px;height:${h}px;pointer-events:auto;background:rgba(${r},${g},${b},0.08);border:1px dashed rgba(${r},${g},${b},0.25);`;
+              el.title = meta.preview || meta.title;
+              el.addEventListener('mouseenter', () => {
+                el.style.background = `rgba(${r},${g},${b},0.35)`;
+                el.style.boxShadow = `0 0 0 2px rgba(${r},${g},${b},0.6)`;
+                showAnnotTip(el, meta);
+              });
+              el.addEventListener('mouseleave', () => {
+                el.style.background = 'rgba(' + r + ',' + g + ',' + b + ',0.08)';
+                el.style.boxShadow = 'none';
+                hideAnnotTip();
+              });
+              el.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                hideAnnotTip();
+                if (meta.action) void runAnnotAction(meta.action, annotHandlersRef.current);
+              });
+              overlay.appendChild(el);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[pdf] annot overlay page', i, 'failed:', e);
+      }
     }
 
-    // 渲染当前页
-    void renderPage(currentPage);
+    renderedRef.current = new Set(Array.from({ length: numPages }, (_, k) => k + 1));
     syncPageDisplay(currentPage);
-  }, [numPages, currentPage, renderPage, syncPageDisplay]);
+    if (viewer.scrollHeight > prevScrollTop) viewer.scrollTop = prevScrollTop;
+  }, [numPages, currentPage, syncPageDisplay]);
 
-  // ---------- 初始加载 + 挂 IntersectionObserver (滚动懒加载) ----------
+  // ---------- 初始加载 (一次性渲染, 不懒加载, 滚动不会空白) ----------
   useEffect(() => {
     if (!numPages) return;
     const viewer = viewerRef.current;
     if (!viewer) return;
 
-    let io: IntersectionObserver | null = null;
     let disposed = false;
-
     (async () => {
       await rebuildViewer();
       if (disposed) return;
-
-      // IntersectionObserver: 进入视口 → 渲染
-      // 页码取"可视区占比最大的页" (避免 50% 预加载余量导致页码漂移)
-      io = new IntersectionObserver(
-        (entries) => {
-          let best: { i: number; ratio: number } | null = null;
-          for (const e of entries) {
-            if (!e.isIntersecting) continue;
-            const i = Number((e.target as HTMLElement).dataset['page']);
-            if (!i) continue;
-            if (!best || e.intersectionRatio > best.ratio) {
-              best = { i, ratio: e.intersectionRatio };
-            }
-            // 所有进入视口的页都渲染 (懒加载)
-            void renderPage(i);
-          }
-          if (best) {
-            setCurrentPage(best.i);
-            syncPageDisplay(best.i);
-          }
-        },
-        { root: viewer, rootMargin: '50% 0px' },
-      );
-      pageElsRef.current.forEach((el) => io!.observe(el));
-
       setLoading(false);
     })();
 
-    // resize 后重新加载 (宽度变了, 占位/热区/画布全重建) — 防抖, 只在宽度变化时
-    let lastWidth = viewer.clientWidth;
+    // resize 只重算热区位置 (canvas 100% 自适应不丢内容, 热区是像素定位需按新比例重算)
+    // 用父容器宽度 (viewer 内滚动条出现/消失不影响, 避免滚动误触发)
+    const parentEl = viewer.parentElement as HTMLElement | null;
+    const widthSource = parentEl || viewer;
+    let lastWidth = widthSource.getBoundingClientRect().width;
     let roTimer: ReturnType<typeof setTimeout> | null = null;
     const ro = new ResizeObserver(() => {
-      const w = viewer.clientWidth;
+      const w = widthSource.getBoundingClientRect().width;
       if (Math.abs(w - lastWidth) < 2) return;
       lastWidth = w;
       if (roTimer) clearTimeout(roTimer);
       roTimer = setTimeout(() => {
-        // 重建占位 (IO 会因节点重建失效, 这里重新触发整个 effect 重建)
-        setRebuildTick((n) => n + 1);
-      }, 200);
+        // 每个 page 的热区按该页 canvas 新比例重算
+        for (const el of pageElsRef.current.values()) {
+          const canvas = el.querySelector('canvas') as HTMLCanvasElement | null;
+          if (!canvas) continue;
+          const annots = el.querySelectorAll('.ab-pdf-annot');
+          if (!annots.length) continue;
+          const scaleX = canvas.width / canvas.clientWidth;
+          const scaleY = canvas.height / canvas.clientHeight;
+          for (const a of Array.from(annots) as HTMLElement[]) {
+            const origLeft = parseFloat(a.dataset['origLeft'] || '0');
+            const origTop = parseFloat(a.dataset['origTop'] || '0');
+            const origW = parseFloat(a.dataset['origW'] || '0');
+            const origH = parseFloat(a.dataset['origH'] || '0');
+            if (!a.dataset['origLeft']) continue;
+            a.style.left = `${origLeft / scaleX}px`;
+            a.style.top = `${origTop / scaleY}px`;
+            a.style.width = `${origW / scaleX}px`;
+            a.style.height = `${origH / scaleY}px`;
+          }
+        }
+      }, 300);
     });
-    ro.observe(viewer);
+    ro.observe(widthSource);
 
     return () => {
       disposed = true;
-      io?.disconnect();
       ro.disconnect();
       if (roTimer) clearTimeout(roTimer);
     };
-  }, [numPages, rebuildViewer, renderPage, syncPageDisplay, rebuildTick]);
+  }, [numPages, rebuildViewer]);
 
   // ---------- 标注行为处理器 (modal / tab / terminal) ----------
   useEffect(() => {
