@@ -16,6 +16,7 @@ out/
 
 # opencode 运行工作区 (dev:opencode 在此目录启动, 运行时数据/会话)
 # 内部是用户文件 (PDF/代码等), 不纳入版本控制
+/cwd/*
 /workspace/*
 
 
