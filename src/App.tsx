@@ -10,7 +10,8 @@ import { buildSlots } from './config/slots';
 import { AssistantModule } from './extensions/assistant';
 import { ActionsModule } from './extensions/actions';
 import { WelcomeModule } from './extensions/welcome';
-import { PdfReaderModule } from './extensions/pdf-reader';
+import { PdfReaderModule } from './extensions/pdf';
+import { BinaryModule } from './extensions/binary';
 import { preferences } from './config/preferences';
 import { runtimeConfig } from './config/runtime';
 import { FsCommandsModule, getWorkspaceDir } from './commands/fs';
@@ -90,6 +91,7 @@ export const App: React.FC = () => {
           TerminalModule,
           WelcomeModule,
           PdfReaderModule,
+          BinaryModule,
           AssistantModule,
           ActionsModule,
         ],

@@ -1,5 +1,5 @@
 /**
- * PDF Reader 拓展 — extensions/pdf-reader/
+ * PDF 阅读器拓展 — extensions/pdf/
  *
  * OpenSumi 拓展:
  *   - module.ts        PdfReaderModule + PdfReaderContribution (注册 editor component)
