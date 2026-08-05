@@ -5,17 +5,34 @@ import type { ResourceService } from '@opensumi/ide-editor';
 import { BrowserEditorContribution, EditorComponentRegistry } from '@opensumi/ide-editor/lib/browser/types';
 
 import { PdfReaderView } from './PdfReaderView';
+import { BinaryViewer } from './BinaryViewer';
 
 const PDF_COMPONENT_ID = 'animbook.pdf-reader';
+const BINARY_COMPONENT_ID = 'animbook.binary-viewer';
 const PDF_SCHEME = 'file';
 
+/** 二进制扩展名 (不能进文本编辑器, 走 BinaryViewer 兜底) */
+const BINARY_EXTS = new Set([
+  'pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx',
+  'zip', 'rar', '7z', 'gz', 'tar', 'bz2',
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp',
+  'mp4', 'mkv', 'avi', 'mov', 'webm', 'mp3', 'wav', 'ogg', 'flac',
+  'exe', 'dll', 'bin', 'dat', 'iso', 'dmg',
+  'ttf', 'otf', 'woff', 'woff2', 'eot',
+]);
+
+function getExt(path: string): string {
+  const m = /\.([a-z0-9]+)$/i.exec(path || '');
+  return m ? m[1].toLowerCase() : '';
+}
+
 /**
- * PdfReader 拓展 — 把 .pdf 文件用 PdfReaderView 作为编辑器组件打开.
+ * PdfReader 拓展 — .pdf 用 PdfReaderView; 其他二进制用 BinaryViewer 兜底;
+ * 文本文件不干扰 (让内置 resolver 处理).
  *
  * 注册:
- *   - EditorComponent uid = PDF_COMPONENT_ID (scheme = file)
- *   - registerEditorComponentResolver for file scheme, 当 URI 以 .pdf 结尾时
- *     返回 component 类型, 优先级高于默认 text editor
+ *   - EditorComponent uid = PDF_COMPONENT_ID / BINARY_COMPONENT_ID (scheme = file)
+ *   - registerEditorComponentResolver for file scheme 分类处理
  */
 // eslint-disable-next-line no-console
 console.log('[pdf] PdfReaderModule loaded');
@@ -34,19 +51,24 @@ export class PdfReaderContribution implements BrowserEditorContribution {
       scheme: PDF_SCHEME,
       component: PdfReaderView as any,
     });
-    // 用 function 重载给所有 file:// URI 一个权重, 命中 .pdf 时高权重返回 PDF reader,
-    // 其余情况 resolve(results) 把控制权交给其他 resolver
-    // (OpenSumi 内置的 FileSystemEditorComponentContribution 把 .pdf 当 text 打开,
-    //  我们用 weight=1000 抢在前面)
+    registry.registerEditorComponent({
+      uid: BINARY_COMPONENT_ID,
+      scheme: PDF_SCHEME,
+      component: BinaryViewer as any,
+    });
+    // 用 function 重载给所有 file:// URI 一个权重, 分类处理:
+    //   .pdf → PDF 阅读器; 其他二进制 → BinaryViewer 兜底; 文本 → 不 resolve 让内置处理
     registry.registerEditorComponentResolver(
       (scheme: string) => (scheme === 'file' ? 1000 : -1),
       (resource: any, results: any[], resolve: (r: any[]) => void) => {
         const uri: any = resource?.uri;
         const pathStr = (uri?.path?.toString?.() || '').toLowerCase();
         const codeFsPath = String(uri?.codeUri?.fsPath || '').toLowerCase();
+        const fullPath = pathStr || codeFsPath;
+        const ext = getExt(fullPath);
         // eslint-disable-next-line no-console
-        console.log('[pdf] resolver hit', { pathStr, codeFsPath, scheme: uri?.scheme, resultsBefore: results.length });
-        if (pathStr.endsWith('.pdf') || codeFsPath.endsWith('.pdf')) {
+        console.log('[pdf] resolver hit', { pathStr, codeFsPath, ext, resultsBefore: results.length });
+        if (ext === 'pdf') {
           resolve([
             {
               componentId: PDF_COMPONENT_ID,
@@ -55,9 +77,21 @@ export class PdfReaderContribution implements BrowserEditorContribution {
               weight: 1000,
             },
           ]);
-        } else {
-          resolve(results);
+          return;
         }
+        if (BINARY_EXTS.has(ext)) {
+          // 其他二进制: 兜底 BinaryViewer (不进文本编辑器, 避免崩溃)
+          resolve([
+            {
+              componentId: BINARY_COMPONENT_ID,
+              type: 'component',
+              title: '二进制文件',
+              weight: 1000,
+            },
+          ]);
+          return;
+        }
+        // 文本: 不 resolve, 让后续 resolver 继续 (resolve 会截断 resolver 链)
       },
     );
   }
