@@ -1,0 +1,23 @@
+.git/
+.gitignore
+.gitkeep
+
+# 运行时产物
+workspace/
+data/
+config/
+
+# 文档
+README.md
+AGENTS.md
+docs/
+
+# 过程产物
+.cache/
+
+# 依赖（Dockerfile 里 npm ci 会装）
+node_modules/
+
+# 源码外文件
+.vscode/
+.DS_Store

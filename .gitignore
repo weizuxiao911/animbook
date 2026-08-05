@@ -1,0 +1,33 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+out/
+*.vsix
+
+# 环境配置 (仅 .env.example 提交到 git, 其它 gitignore)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+
+# opencode 运行工作区 (dev:opencode 在此目录启动, 运行时数据/会话)
+# 内部是用户文件 (PDF/代码等), 不纳入版本控制
+# (需要工作区示例文件的话单独建 workspace.example/)
+/workspace/
+!workspace/.gitkeep
+
+# 临时
+.cache/
+*.log
+
+# 编辑器/系统
+.DS_Store
+.idea/
+.vscode/
+.playwright-mcp/
+.userData/
+.workspace/
