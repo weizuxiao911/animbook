@@ -1,12 +1,13 @@
 /**
- * PdfReaderView — animbook PDF 阅读器 (最简化版)
+ * PdfReaderView — animbook PDF 阅读器
  *
- * 模式 (按用户要求, 全部去复杂化):
- *   1. 一次性渲染所有页 (不懒加载, 简单)
- *   2. 每页 = .page div, width 100% + canvas width 100% height auto
- *   3. fitScale 一次性按初始容器宽算, 不响应 resize (等用户再说要不要)
- *   4. 翻页: setCurrentPage + scrollIntoView
- *   5. 键盘: ArrowLeft/ArrowRight/PageUp/PageDown
+ * 模式 (滚动位置与页面一致 + 懒加载):
+ *   1. 加载 PDF 后: 算出 fitScale, 为所有页创建占位 div (高度 = 页高×fitScale + margin)
+ *      → 滚动条完整, 滚动位置天然对应页面位置, 不需要手动翻页
+ *   2. IntersectionObserver 监听占位 div: 进入视口 → 渲染该页 canvas (+ 标注层)
+ *   3. 已渲染的页不重复渲染 (缓存标记)
+ *   4. 滚动到哪页, 哪页自动加载显示, 位置一致
+ *   5. 键盘/页码输入仍可跳转 (scrollIntoView)
  *
  * 读取走 FS API (__ANIMBOOK_FS_API__.readBinaryAbsolute).
  */
@@ -74,6 +75,17 @@ async function openPdfFromBytes(bytes: Uint8Array): Promise<any> {
 export const PdfReaderView: React.FC<Props> = ({ resource }) => {
   const viewerRef = useRef<HTMLDivElement>(null);
   const pdfDocRef = useRef<any>(null);
+  /** 已渲染完成的 page idx 集合 */
+  const renderedRef = useRef<Set<number>>(new Set());
+  /** 正在渲染中的 page idx 集合 (防并发) */
+  const inFlightRef = useRef<Set<number>>(new Set());
+  /** fitScale (所有页共用) */
+  const fitScaleRef = useRef<number>(1);
+  /** page 原始尺寸 */
+  const pageBaseRef = useRef<{ width: number; height: number } | null>(null);
+  /** 每页占位 div 引用 */
+  const pageElsRef = useRef<Map<number, HTMLDivElement>>(new Map());
+
   const hostPath = useMemo(() => resolveHostPath(resource), [resource]);
 
   const [loading, setLoading] = useState(true);
@@ -81,8 +93,103 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
   const [numPages, setNumPages] = useState(0);
   const [progress, setProgress] = useState({ loaded: 0, total: 0 });
   const [currentPage, setCurrentPage] = useState(1);
+  /** 页码输入框 (非受控, 输入时不被滚动同步抢走) */
+  const pageInputRef = useRef<HTMLInputElement>(null);
+  /** 输入框是否聚焦中 (聚焦时不更新它的值) */
+  const inputFocusedRef = useRef(false);
 
-  // ---------- 加载 PDF + 一次性渲染所有页 ----------
+  /** 同步页码显示 (滚动/跳转时更新输入框, 但聚焦中不抢) */
+  const syncPageDisplay = useCallback((n: number) => {
+    if (inputFocusedRef.current) return;
+    const el = pageInputRef.current;
+    if (el) el.value = String(n);
+  }, []);
+
+  /** 渲染单页: 在占位 div 里插入 canvas + 标注层 */
+  const renderPage = useCallback(async (pageIdx: number) => {
+    if (pageIdx < 1 || pageIdx > numPages) return;
+    if (renderedRef.current.has(pageIdx)) return;
+    if (inFlightRef.current.has(pageIdx)) return;
+    const pdf = pdfDocRef.current;
+    const pageEl = pageElsRef.current.get(pageIdx);
+    if (!pdf || !pageEl) return;
+    if (!pageBaseRef.current) return; // 等 fitScale 算好
+
+    inFlightRef.current.add(pageIdx);
+    try {
+      const page = await pdf.getPage(pageIdx);
+      const dpr = window.devicePixelRatio || 1;
+      const renderScale = fitScaleRef.current * dpr;
+      const viewport = page.getViewport({ scale: renderScale });
+
+      const canvas = document.createElement('canvas');
+      canvas.className = 'ab-pdf-canvas';
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
+      pageEl.appendChild(canvas);
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) await page.render({ canvasContext: ctx, viewport }).promise;
+
+      // 标注层
+      try {
+        const annots = await page.getAnnotations();
+        if (annots && annots.length > 0) {
+          const layerDiv = document.createElement('div');
+          layerDiv.className = 'ab-pdf-annot-layer';
+          layerDiv.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;';
+          pageEl.appendChild(layerDiv);
+
+          const { AnnotationLayer } = pdfjsLib as any;
+          const al = new AnnotationLayer({
+            div: layerDiv,
+            page,
+            viewport: page.getViewport({ scale: renderScale }),
+            accessibilityManager: null,
+            annotationCanvasMap: null,
+            annotationEditorUIManager: null,
+            structTreeLayer: null,
+          });
+          await al.render({
+            viewport: page.getViewport({ scale: renderScale }),
+            div: layerDiv,
+            annotations: annots,
+            page,
+            linkService: {
+              goToLink: () => {},
+              goToDestination: () => Promise.resolve(),
+              getDestinationHash: () => '',
+              getAnchorUrl: () => '',
+              getPageNum: () => 1,
+              getPage: () => null,
+            },
+            renderForms: false,
+            enableScripting: false,
+            hasJSActions: false,
+            fieldObjects: null,
+            annotationCanvasMap: null,
+            accessibilityManager: null,
+            annotationEditorUIManager: null,
+          });
+        }
+      } catch (e) {
+        console.warn('[pdf] annotation layer page', pageIdx, 'failed:', e);
+      }
+
+      renderedRef.current.add(pageIdx);
+    } catch (e) {
+      if ((e as any)?.name !== 'RenderingCancelledException') {
+        console.warn('[pdf] render page', pageIdx, 'failed:', e);
+      }
+    } finally {
+      inFlightRef.current.delete(pageIdx);
+    }
+  }, [numPages]);
+
+  // ---------- 加载 PDF ----------
   useEffect(() => {
     let cancelled = false;
     const ac = new AbortController();
@@ -105,17 +212,90 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
         if (cancelled) return;
         pdfDocRef.current = pdf;
         setNumPages(pdf.numPages);
-        // 一次性渲染所有页
-        await renderAllPages(pdf, viewerRef.current);
-        setLoading(false);
       } catch (e) {
         if (!cancelled) setError(String((e as any)?.message || e));
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; ac.abort(); try { pdfDocRef.current?.destroy?.(); } catch { /* */ } };
+    return () => {
+      cancelled = true;
+      ac.abort();
+      try { pdfDocRef.current?.destroy?.(); } catch { /* */ }
+    };
   }, [hostPath]);
+
+  // ---------- 建占位 + 挂 IntersectionObserver (滚动懒加载) ----------
+  useEffect(() => {
+    if (!numPages) return;
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    (async () => {
+      // 算 fitScale (用第 1 页原生尺寸)
+      const firstPage = await pdfDocRef.current.getPage(1);
+      const base = firstPage.getViewport({ scale: 1 });
+      pageBaseRef.current = { width: base.width, height: base.height };
+      const containerW = Math.max(viewer.clientWidth - 16, 60);
+      fitScaleRef.current = containerW / base.width;
+
+      // 清空, 建所有页占位 div (高度 = 页高×fitScale + 页间距)
+      viewer.innerHTML = '';
+      pageElsRef.current.clear();
+      renderedRef.current.clear();
+      const pageGap = 8;
+      const pageH = base.height * fitScaleRef.current;
+
+      for (let i = 1; i <= numPages; i++) {
+        const div = document.createElement('div');
+        div.className = 'ab-pdf-page';
+        div.dataset['page'] = String(i);
+        div.style.cssText = `width:100%;height:${pageH}px;margin-bottom:${pageGap}px;`;
+        viewer.appendChild(div);
+        pageElsRef.current.set(i, div);
+      }
+
+      // IntersectionObserver: 进入视口 → 渲染
+      // 页码取"可视区占比最大的页" (避免 200px 预加载余量导致页码漂移)
+      const io = new IntersectionObserver(
+        (entries) => {
+          let best: { i: number; ratio: number } | null = null;
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            const i = Number((e.target as HTMLElement).dataset['page']);
+            if (!i) continue;
+            if (!best || e.intersectionRatio > best.ratio) {
+              best = { i, ratio: e.intersectionRatio };
+            }
+            // 所有进入视口的页都渲染 (懒加载)
+            void renderPage(i);
+          }
+          if (best) {
+            setCurrentPage(best.i);
+            syncPageDisplay(best.i);
+          }
+        },
+        { root: viewer, rootMargin: '200px 0px' },
+      );
+      pageElsRef.current.forEach((el) => io.observe(el));
+
+      // 首次渲染第 1 页 (立即显示)
+      void renderPage(1);
+      syncPageDisplay(1);
+      setLoading(false);
+
+      return () => io.disconnect();
+    })();
+  }, [numPages, renderPage, syncPageDisplay]);
+
+  // ---------- 跳转到指定页 ----------
+  const jumpToPage = useCallback((n: number) => {
+    const clamped = Math.min(numPages, Math.max(1, n));
+    setCurrentPage(clamped);
+    syncPageDisplay(clamped);
+    const el = pageElsRef.current.get(clamped);
+    if (el) el.scrollIntoView({ behavior: 'auto', block: 'start' });
+  }, [numPages, syncPageDisplay]);
 
   // ---------- 键盘翻页 ----------
   useEffect(() => {
@@ -132,54 +312,67 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [currentPage, numPages]);
-
-  const jumpToPage = useCallback((n: number) => {
-    const clamped = Math.min(numPages, Math.max(1, n));
-    setCurrentPage(clamped);
-    const el = viewerRef.current?.querySelector(`[data-page="${clamped}"]`) as HTMLElement | null;
-    if (el) el.scrollIntoView({ behavior: 'auto', block: 'start' });
-  }, [numPages]);
+  }, [currentPage, jumpToPage]);
 
   return (
     <div className="ab-pdf">
       <style>{STYLES}</style>
-      <div className="ab-pdf__viewerContainer" ref={viewerRef}>
-        {loading && (
-          <div className="ab-pdf__loading">
-            <div className="ab-pdf__loadingText">
-              加载 PDF 中… {progress.total > 0 && (
-                <span>
-                  {Math.round((progress.loaded / progress.total) * 100)}%
-                  {' '}({formatBytes(progress.loaded)} / {formatBytes(progress.total)})
-                </span>
-              )}
-            </div>
-            <div className="ab-pdf__progress">
-              <div
-                className="ab-pdf__progressBar"
-                style={{
-                  width: progress.total > 0
-                    ? `${Math.min(100, (progress.loaded / progress.total) * 100)}%`
-                    : '40%',
-                  animation: progress.total > 0 ? 'none' : 'ab-pdf-indet 1.2s ease-in-out infinite',
-                }}
-              />
-            </div>
+      {/* viewer div: 永不包含 React children, page DOM 全部手动插入 */}
+      <div className="ab-pdf__viewerContainer" ref={viewerRef} />
+      {loading && (
+        <div className="ab-pdf__loading">
+          <div className="ab-pdf__loadingText">
+            加载 PDF 中… {progress.total > 0 && (
+              <span>
+                {Math.round((progress.loaded / progress.total) * 100)}%
+                {' '}({formatBytes(progress.loaded)} / {formatBytes(progress.total)})
+              </span>
+            )}
           </div>
-        )}
+          <div className="ab-pdf__progress">
+            <div
+              className="ab-pdf__progressBar"
+              style={{
+                width: progress.total > 0
+                  ? `${Math.min(100, (progress.loaded / progress.total) * 100)}%`
+                  : '40%',
+                animation: progress.total > 0 ? 'none' : 'ab-pdf-indet 1.2s ease-in-out infinite',
+              }}
+            />
+          </div>
+        </div>
+      )}
 
-        {error && <div className="ab-pdf__error">无法加载: {error}</div>}
-      </div>
+      {error && <div className="ab-pdf__error">无法加载: {error}</div>}
 
       {!loading && !error && (
         <div className="ab-pdf__toolbar">
           <button className="ab-pdf__btn" disabled={currentPage <= 1} onClick={() => jumpToPage(currentPage - 1)}>‹</button>
           <span className="ab-pdf__pageno">
             <input
+              ref={pageInputRef}
               className="ab-pdf__pagenoInput"
-              value={currentPage}
-              onChange={(e) => { const v = parseInt(e.target.value, 10); if (!Number.isNaN(v)) jumpToPage(v); }}
+              defaultValue={currentPage}
+              onFocus={() => { inputFocusedRef.current = true; }}
+              onBlur={() => {
+                inputFocusedRef.current = false;
+                const v = parseInt(pageInputRef.current?.value || '', 10);
+                if (!Number.isNaN(v) && v !== currentPage) {
+                  jumpToPage(v);
+                } else {
+                  syncPageDisplay(currentPage);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const v = parseInt(pageInputRef.current?.value || '', 10);
+                  if (!Number.isNaN(v)) {
+                    inputFocusedRef.current = false;
+                    jumpToPage(v);
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }
+              }}
             />{' '}/ {numPages}
           </span>
           <button className="ab-pdf__btn" disabled={currentPage >= numPages} onClick={() => jumpToPage(currentPage + 1)}>›</button>
@@ -188,47 +381,6 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
     </div>
   );
 };
-
-/**
- * 一次性渲染所有页.
- * canvas width: 100% height: auto, 由 CSS 决定显示尺寸.
- * 渲染时 fitScale = containerW / pageW (一次性按初始容器宽算).
- */
-async function renderAllPages(pdf: any, viewer: HTMLElement | null) {
-  if (!viewer) return;
-  viewer.innerHTML = '';
-
-  const firstPage = await pdf.getPage(1);
-  const base = firstPage.getViewport({ scale: 1 });
-  const containerW = Math.max(viewer.clientWidth - 16, 60);
-  const fitScale = containerW / base.width;
-  const dpr = window.devicePixelRatio || 1;
-  const renderScale = fitScale * dpr;
-
-  // 串行渲染所有页 (避免一次并发 439 个, 卡浏览器)
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: renderScale });
-
-    const pageDiv = document.createElement('div');
-    pageDiv.className = 'ab-pdf-page';
-    pageDiv.dataset['page'] = String(i);
-
-    const canvas = document.createElement('canvas');
-    canvas.className = 'ab-pdf-canvas';
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
-    canvas.style.width = '100%';
-    canvas.style.height = 'auto';
-    canvas.style.display = 'block';
-    pageDiv.appendChild(canvas);
-
-    viewer.appendChild(pageDiv);
-
-    const ctx = canvas.getContext('2d');
-    if (ctx) await page.render({ canvasContext: ctx, viewport }).promise;
-  }
-}
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -252,27 +404,42 @@ const STYLES = `
   overflow-x: hidden;
   overflow-y: auto;
   padding: 8px 0;
-  display: flex; flex-direction: column; align-items: stretch;
+  display: block;
   background: transparent;
 }
 .ab-pdf-page {
   position: relative;
-  margin: 8px 0;
   background: #fff;
   box-shadow: 0 2px 8px rgba(0,0,0,0.5);
   flex-shrink: 0;
+  overflow: hidden;
 }
 .ab-pdf-canvas {
   display: block;
   width: 100% !important;
-  height: auto !important;
+  height: 100% !important;
 }
-.ab-pdf__error { margin: auto; color: #fca5a5; font-size: 14px; padding: 20px; }
-.ab-pdf__loading {
+.ab-pdf-annot-layer {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.ab-pdf__error {
+  position: absolute; inset: 0;
   margin: auto;
-  display: flex; flex-direction: column; align-items: center;
+  color: #fca5a5; font-size: 14px; padding: 20px;
+  text-align: center;
+  display: flex; align-items: center; justify-content: center;
+}
+.ab-pdf__loading {
+  position: absolute; inset: 0;
+  margin: auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 14px;
   color: #d4d4d4; font-size: 13px;
+  background: var(--editor-background, #1e1e1e);
+  z-index: 5;
 }
 .ab-pdf__loadingText { font-variant-numeric: tabular-nums; }
 .ab-pdf__loadingText span { color: #fff; }

@@ -219,6 +219,11 @@
   background: var(--tc-surface-muted) !important;
 }
 
+/* ============= right slot 折叠 =============
+   OpenSumi 的 toggleSlot 折叠 right 只隐藏竖 tabbar, 面板还占位.
+   ActionsView.toggleRight 里用 JS 手动隐藏面板 + 压容器宽度.
+   这里不需要 CSS 规则. */
+
 /* ============= 右侧 AI 面板 ============= */
 /* 隐藏 OpenSumi view-container 顶部标题条 ("AI 助手" h1), AiPanel 自带顶栏 */
 .tc-right-panel [class*="view_container___"] > [class*="titlebar___"] {

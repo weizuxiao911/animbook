@@ -7,10 +7,12 @@ import { IMainLayoutService } from '@opensumi/ide-main-layout/lib/common';
  * ActionsView — action 槽位 (top 横条右侧)
  *
  * 3 个布局 toggle: 折叠/展开 左侧栏 / 底部栏 / 右侧栏.
+ * 全部走 OpenSumi 原生 toggleSlot (不再手动操作 DOM, 验证原生 right 折叠行为).
  * 无登录/账号按钮 (animbook 独立产品, 无登录态).
  *
  * 参考: 早期实验仓 extensions/actions/ActionsView.tsx (登录/账号被砍).
  */
+
 export const ActionsView: React.FC = () => {
   const layoutService = useInjectable<IMainLayoutService>(IMainLayoutService);
   const [leftVisible, setLeftVisible] = useState(false);
@@ -18,6 +20,24 @@ export const ActionsView: React.FC = () => {
   const [rightVisible, setRightVisible] = useState(true);
 
   useEffect(() => {
+    // 启动时: 确保 right slot 有激活的面板. OpenSumi 布局缓存可能是
+    // { currentId: "", size: 438 } (折叠态但容器占宽) → 刷新后右侧空栏.
+    // 延迟到容器注册完再激活 AI 面板.
+    let disposed = false;
+    const activateRight = () => {
+      const rightService = layoutService.getTabbarService(SlotLocation.right);
+      if (!rightService.currentContainerId.get()) {
+        const first = rightService.containersMap.keys().next().value;
+        if (first) {
+          rightService.updateCurrentContainerId(first);
+        }
+      }
+    };
+    // 多试几次 (容器异步注册)
+    for (const delay of [100, 300, 800, 2000]) {
+      setTimeout(() => { if (!disposed) activateRight(); }, delay);
+    }
+
     const sync = (slot: string, setter: (v: boolean) => void) => () => {
       setter(layoutService.isVisible(slot));
     };
@@ -34,7 +54,10 @@ export const ActionsView: React.FC = () => {
       disposables.push(service.onCurrentChange(syncFn));
       disposables.push(service.onSizeChange(syncFn));
     });
-    return () => disposables.forEach((d) => d.dispose());
+    return () => {
+      disposed = true;
+      disposables.forEach((d) => d.dispose());
+    };
   }, [layoutService]);
 
   const toggleLeft = () => layoutService.toggleSlot(SlotLocation.left);
