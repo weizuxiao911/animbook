@@ -1,7 +1,8 @@
-import { Injectable } from '@opensumi/di';
+import { Injectable, Autowired } from '@opensumi/di';
 import { Domain } from '@opensumi/ide-core-common';
-import { BrowserModule } from '@opensumi/ide-core-browser';
+import { BrowserModule, ClientAppContribution, SlotLocation } from '@opensumi/ide-core-browser';
 import { ComponentContribution, ComponentRegistry } from '@opensumi/ide-core-browser/lib/layout';
+import { IMainLayoutService } from '@opensumi/ide-main-layout/lib/common';
 
 import { ActionsView } from './ActionsView';
 
@@ -27,9 +28,25 @@ export class ActionsContribution implements ComponentContribution {
   }
 }
 
+/**
+ * 默认布局 — 启动后展开左侧资源管理器.
+ * (defaultPanels 只激活容器不控制显隐; LayoutComponent mount 时机太早;
+ *  onDidStart 时 toggleSlot 才可靠)
+ */
+@Injectable()
+@Domain(ClientAppContribution)
+export class DefaultLayoutContribution implements ClientAppContribution {
+  @Autowired(IMainLayoutService)
+  private readonly layoutService!: IMainLayoutService;
+
+  onDidStart(): void {
+    this.layoutService.toggleSlot(SlotLocation.left, true);
+  }
+}
+
 @Injectable()
 export class ActionsModule extends BrowserModule {
-  providers = [ActionsContribution];
+  providers = [ActionsContribution, DefaultLayoutContribution];
 
-  contributionProvider = ComponentContribution;
+  contributionProvider = [ComponentContribution, ClientAppContribution];
 }

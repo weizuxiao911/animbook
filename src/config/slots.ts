@@ -51,5 +51,8 @@ export function buildSlots(workspaceDir: string): Slots {
         modules: []
       },
     } as any,
+    defaultPanels: {
+      left: "@opensumi/ide-explorer"
+    }
   };
 }
