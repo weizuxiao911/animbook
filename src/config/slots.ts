@@ -5,7 +5,7 @@ import { LayoutComponent } from './layout';
 
 export type Slots = Pick<
   IAppRendererProps['appConfig'],
-  'workspaceDir' | 'layoutComponent' | 'layoutConfig' | 'defaultPanels'
+  'workspaceDir' | 'layoutComponent' | 'layoutConfig'
 >;
 
 /**
@@ -51,8 +51,5 @@ export function buildSlots(workspaceDir: string): Slots {
         modules: []
       },
     } as any,
-    defaultPanels: {
-      left: "@opensumi/ide-explorer"
-    }
   };
 }
