@@ -10,6 +10,7 @@ import {
 } from '@opensumi/ide-terminal-next/lib/common';
 
 import { getWorkspaceDirSync } from '../fs';
+import { getDefaultShell, getCodePlatformKey, getOperatingSystem, isWindows, basename } from '../platform';
 
 /**
  * OpenCode PTY 终端服务 — 把 OpenSumi 终端的 node pty 层替换为 OpenCode /pty
@@ -117,25 +118,20 @@ export class OpenCodePtyService implements ITerminalServiceClient {
     const cwd = this.cwd;
 
     const exec = (launchConfig as any).executable || (launchConfig as any).shellPath || '';
-    const isDefaultSh = !exec || exec === '/bin/sh' || exec === 'sh';
-    // 默认 shell 优先级: $SHELL → 平台感知 (macOS zsh, 其余 bash)
-    const fallbackShell = (() => {
-      const envShell = typeof window !== 'undefined'
-        ? (window as any).__ANIMBOOK_SHELL__
-        : '';
-      if (envShell) return envShell;
-      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-      if (/Mac|iPhone|iPad/.test(ua)) return '/bin/zsh';
-      return '/bin/bash';
-    })();
+    const isDefaultSh = !exec
+      || exec === '/bin/sh' || exec === 'sh'
+      || exec === '/bin/bash' || exec === 'bash'
+      || exec === '/bin/zsh' || exec === 'zsh'
+      || exec === 'powershell.exe' || exec === 'pwsh' || exec === 'cmd.exe';
+    const fallbackShell = getDefaultShell();
     const shellPath = isDefaultSh ? fallbackShell : exec;
     const rawArgs: any[] = Array.isArray((launchConfig as any).args)
       ? (launchConfig as any).args
       : [];
     // 默认 shell 用交互模式 (有提示符); 用户显式 shell 尊重其 args
     const args: string[] = isDefaultSh
-      ? ['-i']
-      : rawArgs.length > 0 ? rawArgs.map(String) : ['-i'];
+      ? isWindows() ? [] : ['-i']
+      : rawArgs.length > 0 ? rawArgs.map(String) : (isWindows() ? [] : ['-i']);
 
     const { data: pty, error: createErr } = await client.pty.create({
       command: shellPath,
@@ -292,15 +288,16 @@ export class OpenCodePtyService implements ITerminalServiceClient {
   setConnectionClientId(_clientId: string): void { /* noop */ }
   ensureTerminal(_terminalIdArr: string[]): Promise<boolean> { return Promise.resolve(true); }
 
-  async $resolveWindowsShellPath(): Promise<string | undefined> { return '/bin/sh'; }
+  async $resolveWindowsShellPath(): Promise<string | undefined> { return 'powershell.exe'; }
   async $resolveUnixShellPath(): Promise<string | undefined> { return '/bin/sh'; }
-  async $resolveShellPath(paths: string[]): Promise<string | undefined> { return paths[0] || '/bin/sh'; }
+  async $resolveShellPath(paths: string[]): Promise<string | undefined> { return paths[0] || getDefaultShell(); }
   async detectAvailableProfiles(): Promise<any[]> {
-    return [{ path: '/bin/sh', name: 'sh', isDefault: true }];
+    const shell = getDefaultShell();
+    return [{ path: shell, name: basename(shell), isDefault: true }];
   }
-  async getDefaultSystemShell(): Promise<string> { return '/bin/sh'; }
-  getOS(): any { return 3; } // Linux
-  async getCodePlatformKey(): Promise<'osx' | 'windows' | 'linux'> { return 'linux'; }
+  async getDefaultSystemShell(): Promise<string> { return getDefaultShell(); }
+  getOS(): any { return getOperatingSystem(); }
+  async getCodePlatformKey(): Promise<'osx' | 'windows' | 'linux'> { return getCodePlatformKey(); }
 }
 
 /**

@@ -6,10 +6,12 @@
  *
  *   - list  : v2.fs.list (HTTP, 不创建 PTY)
  *   - read  : v2.fs.read (HTTP, 返回 Blob/文本, 不创建 PTY)
- *   - write : pty.create(/bin/sh -c "printf BASE64 | base64 -d > path")
- *   - delete: pty.create(/bin/sh -c "rm -rf path")
+ *   - write : PTY 执行 shell (Unix: base64 管道; Windows: [IO.File]::WriteAllBytes)
+ *   - delete: PTY 执行 shell (rm -rf / Remove-Item)
  *   - find  : v2.fs.find (HTTP)
- *   - mkdir : pty.create(/bin/sh -c "mkdir -p path")
+ *   - mkdir : PTY 执行 shell (mkdir -p / New-Item)
+ *
+ * shell 平台感知: Windows → powershell.exe, 其余 → /bin/sh (见 platform.ts).
  *
  * 工作区根目录通过 GET {baseUrl}/path 拿 directory 字段动态获取 (不再硬编码 /workspace).
  * IDE 侧路径都是相对于 workspaceDir 的, 映射到宿主机绝对路径后再交给 opencode.
@@ -26,6 +28,7 @@ import { IFileServiceClient } from '@opensumi/ide-file-service';
 import { WORKSPACE_ROOT } from '@codeblitzjs/ide-core';
 
 import { getOpencodeClient } from './sandbox';
+import { isWindows, shellQuote, joinHostPath, basename, dirname } from './platform';
 
 /** 沙箱文件类型: 0 未知 / 1 文件 / 2 目录 (BrowserFS FileType) */
 export const FILE_TYPE_FILE = 1;
@@ -74,16 +77,18 @@ export function getWorkspaceDirSync(): string | null {
   return _workspaceDir;
 }
 
-/** IDE 相对路径 → 宿主机绝对路径.  '/foo/bar.txt' → '{workspace}/foo/bar.txt' */
+/** IDE 相对路径 → 宿主机绝对路径.  '/foo/bar.txt' → '{workspace}/foo/bar.txt' (Windows 反斜杠分隔) */
 export async function toHostPath(idePath: string): Promise<string> {
   const root = await getWorkspaceDir();
-  const rel = idePath.replace(/^\/+/, '');
-  return rel ? `${root}/${rel}` : root;
+  return joinHostPath(root, idePath);
 }
 
-function shellQuote(s: string): string {
-  // 单引号包裹, 内嵌单引号替换为 '\''
-  return `'${s.replace(/'/g, `'\\''`)}'`;
+/** shell 可执行命令包装: Windows → PowerShell 非交互执行, 其余 → /bin/sh -c */
+function shellCommand(cmd: string): { command: string; args: string[] } {
+  if (isWindows()) {
+    return { command: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', cmd] };
+  }
+  return { command: '/bin/sh', args: ['-c', cmd] };
 }
 
 function bytesToBase64(input: string | Uint8Array): string {
@@ -103,8 +108,9 @@ interface PtyInfo {
 /**
  * runShell — 通过 PTY + WebSocket 执行命令, 收集 stdout 后返回.
  *
- * 与 taichu 同款:
- *   1. pty.create({ command: '/bin/sh', args:['-c', cmd], cwd: workspaceDir, directory: workspaceDir })
+ * 平台感知: Windows → powershell.exe -NoProfile -NonInteractive -Command,
+ * 其余 → /bin/sh -c. 流程:
+ *   1. pty.create({ command, args, cwd: workspaceDir, directory: workspaceDir })
  *   2. WebSocket /pty/{id}/connect?directory=...
  *   3. 轮询 pty.get 直到 status==='exited'
  *   4. pty.remove 清理
@@ -114,10 +120,11 @@ export async function runShell(command: string): Promise<string> {
   if (!client) throw new Error('opencode client not ready');
 
   const cwd = await getWorkspaceDir();
+  const { command: shellPath, args } = shellCommand(command);
 
   const { data: pty, error: createErr } = await client.pty.create({
-    command: '/bin/sh',
-    args: ['-c', command],
+    command: shellPath,
+    args,
     cwd,
     directory: cwd,
   });
@@ -217,7 +224,7 @@ export async function fsList(idePath: string): Promise<FsEntry[]> {
     return entries
       .map((e) => {
         const fullPath: string = e?.path || e?.name || '';
-        const name = fullPath.split('/').pop() || fullPath;
+        const name = basename(fullPath);
         const type: 0 | 1 | 2 = e?.type === 'directory' ? FILE_TYPE_DIR : FILE_TYPE_FILE;
         return { name, type } as FsEntry;
       })
@@ -250,8 +257,8 @@ export async function fsReadBinaryAbsolute(
   hostPath: string,
   opts: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal } = {},
 ): Promise<Uint8Array> {
-  const dir = hostPath.replace(/\/[^/]*$/, '').replace(/\/+$/, '');
-  const name = hostPath.slice(dir.length + 1);
+  const dir = dirname(hostPath);
+  const name = basename(hostPath);
   const url = `/ai/api/fs/read/${encodeURIComponent(name)}?directory=${encodeURIComponent(dir)}`;
   const res = await fetch(url, { signal: opts.signal });
   if (!res.ok) throw new Error(`fs.read HTTP ${res.status}: ${res.statusText}`);
@@ -294,11 +301,14 @@ export async function fsWrite(idePath: string, content: string | Uint8Array): Pr
   try {
     const hostPath = await toHostPath(idePath);
     const b64 = bytesToBase64(content);
+    const dir = dirname(hostPath);
     // 确保父目录存在再写入
-    await runShell(
-      `mkdir -p ${shellQuote(hostPath.replace(/\/[^/]*$/, ''))} `
-      + `&& printf %s ${shellQuote(b64)} | base64 -d > ${shellQuote(hostPath)}`,
-    );
+    const cmd = isWindows()
+      ? `New-Item -ItemType Directory -Force -Path ${shellQuote(dir)}; `
+        + `[IO.File]::WriteAllBytes(${shellQuote(hostPath)}, [Convert]::FromBase64String(${shellQuote(b64)}))`
+      : `mkdir -p ${shellQuote(dir)} `
+        + `&& printf %s ${shellQuote(b64)} | base64 -d > ${shellQuote(hostPath)}`;
+    await runShell(cmd);
     return true;
   } catch (err) {
     console.warn('[fs] write failed:', idePath, err);
@@ -310,7 +320,10 @@ export async function fsWrite(idePath: string, content: string | Uint8Array): Pr
 export async function fsDelete(idePath: string): Promise<boolean> {
   try {
     const hostPath = await toHostPath(idePath);
-    await runShell(`rm -rf ${shellQuote(hostPath)}`);
+    const cmd = isWindows()
+      ? `Remove-Item -Recurse -Force ${shellQuote(hostPath)}`
+      : `rm -rf ${shellQuote(hostPath)}`;
+    await runShell(cmd);
     return true;
   } catch (err) {
     console.warn('[fs] delete failed:', idePath, err);
@@ -322,7 +335,11 @@ export async function fsDelete(idePath: string): Promise<boolean> {
 export async function fsMkdir(idePath: string): Promise<boolean> {
   try {
     const hostPath = await toHostPath(idePath);
-    await runShell(`rm -f ${shellQuote(hostPath)}; mkdir -p ${shellQuote(hostPath)}`);
+    const cmd = isWindows()
+      ? `Remove-Item -Force -ErrorAction SilentlyContinue ${shellQuote(hostPath)}; `
+        + `New-Item -ItemType Directory -Force -Path ${shellQuote(hostPath)}`
+      : `rm -f ${shellQuote(hostPath)}; mkdir -p ${shellQuote(hostPath)}`;
+    await runShell(cmd);
     return true;
   } catch (err) {
     console.warn('[fs] mkdir failed:', idePath, err);
@@ -334,15 +351,22 @@ export async function fsMkdir(idePath: string): Promise<boolean> {
 export async function fsFind(idePath: string, pattern = '*'): Promise<string[]> {
   try {
     const hostPath = await toHostPath(idePath);
-    const out = await runShell(
-      `find ${shellQuote(hostPath)} -maxdepth 4 -name ${shellQuote(pattern)}`,
-    );
-    const prefix = hostPath.replace(/\/+$/, '');
+    const cmd = isWindows()
+      ? `Get-ChildItem -Path ${shellQuote(hostPath)} -Recurse -Depth 3 `
+        + `-Filter ${shellQuote(pattern)} | ForEach-Object { $_.FullName }`
+      : `find ${shellQuote(hostPath)} -maxdepth 4 -name ${shellQuote(pattern)}`;
+    const out = await runShell(cmd);
+    const prefix = hostPath.replace(/[\\/]+$/, '');
     return out
       .split('\n')
       .map((l) => l.trim())
       .filter(Boolean)
-      .map((l) => (l.startsWith(prefix) ? l.slice(prefix.length + 1) : l));
+      .map((l) => {
+        if (l.startsWith(prefix)) {
+          return l.slice(prefix.length).replace(/^[\\/]+/, '');
+        }
+        return basename(l);
+      });
   } catch (err) {
     console.warn('[fs] find failed:', idePath, err);
     return [];
