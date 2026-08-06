@@ -96,6 +96,8 @@ dev 模式并发启动两个服务：
 
 **前置条件**：先安装 [opencode CLI](https://github.com/anomalyco/opencode)（`npm i -g opencode-ai`），dev 脚本会自动 `cd cwd && opencode serve`。
 
+> **注意（Windows 用户）**：目前仅支持类 Unix 文件系统，暂未完全兼容 Windows 系统盘符（`C:\` 等）的路径处理。建议 Windows 用户使用 Docker 部署 opencode（[官方镜像说明](https://github.com/anomalyco/opencode)），将宿主机目录挂载进容器后，opencode 与浏览器工作区的路径统一走容器内路径。
+
 ## 生产构建
 
 ```bash
