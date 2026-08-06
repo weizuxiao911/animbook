@@ -12,8 +12,8 @@
 - 浏览器内运行的 IDE：文件树、编辑器、终端、Tab 布局
 - AI 助手面板（右侧）：对话、模型选择、Provider 管理（基于 opencode SDK）
 - PDF 阅读器：双击 `.pdf` 文件直接在内置阅读器中打开（基于 pdfjs-dist），支持翻页、缩放、键盘导航
-- 终端：集成 OpenCode PTY，直接连宿主 shell（工作区 = `workspace/`）
-- 文件系统：读取、写、删、搜全在浏览器端完成（走 opencode 桥接）
+- 终端：集成 OpenCode PTY，直接连宿主 shell（工作区 = `cwd/`），平台感知（macOS/Linux → zsh/bash，Windows → PowerShell）
+- 文件系统：读取、写、删、搜全在浏览器端完成（走 opencode 桥接），shell 命令按宿主系统自动选择（Windows 走 PowerShell）
 
 ## 技术栈
 
@@ -31,7 +31,7 @@
 │                                                      │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │
 │  │ Explorer │ │  Editor  │ │  Output  │ │ AI Panel │  │
-│  │ (OpenSum)│ │ (OpenSum)│ │  (Logs)  │ │ (React)  │  │
+│  │ (OpenSumi)│ │ (OpenSumi)│ │  (Logs)  │ │ (React)  │  │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘  │
 │       ↕ (FS API)        ↕ (PTY)        ↕ (SDK)         │
 │  ┌────────────────────────────────────────────────┐  │
@@ -42,33 +42,38 @@
                        ↕
             ┌─────────────────────┐
             │  opencode serve      │
-            │  (port 4096)         │
-            │  cwd = workspace/    │
+            │  (port 24096)        │
+            │  cwd = cwd/          │
             └─────────────────────┘
 ```
 
 **关键事实**：
 - **纯前端项目**。后端只有一个 `opencode serve` 进程，不是 Node 后端。
 - 后端 API 走 `/ai/*` → opencode 进程（dev 由 webpack 代理，prod 由反向代理）
-- 工作区根目录从 `GET /api/path` 的 `directory` 字段动态获取，**不硬编码**
+- 工作区根目录从 `GET /ai/path`（Accept: application/json）的 `directory` 字段动态获取，**不硬编码**
+- **平台感知**：`src/commands/platform.ts` 通过 `navigator.userAgentData` / UA 判断宿主系统（macOS/Linux/Windows），pty 与 FS 的 shell 命令、路径分隔符均按平台适配
 
 ## 目录
 
 ```
 src/
 ├── App.tsx                  # 顶层组件, 启动前 fetch 工作区路径
-├── index.tsx                # 入口: 实例化 SDK + 挂 FS API
+├── index.tsx                # 入口: 实例化 SDK + 挂 FS API + 替换 window.confirm
 ├── commands/
 │   ├── sandbox.ts            # opencode SDK 客户端
-│   ├── fs.ts                 # FS API (read/write/PTY shell)
+│   ├── fs.ts                 # FS API (read/write/PTY shell, 平台感知)
+│   ├── platform.ts           # 平台判断 (UA/UA-CH) + shell/路径适配工具
 │   └── terminal/             # 终端模块 (OpenCode PTY ↔ OpenSumi 终端)
 ├── config/
 │   ├── runtime.ts            # OverlayFS + 同步钩子
 │   ├── slots.ts              # 布局 (主区/侧栏/底部)
+│   ├── layout.tsx            # 默认布局 (默认展开资源管理器)
 │   └── preferences.ts        # 默认偏好
 ├── extensions/
 │   ├── welcome/              # 欢迎页 (空工作区)
-│   ├── pdf-reader/           # PDF 阅读器
+│   ├── pdf/                  # PDF 阅读器 (pdfjs-dist v4)
+│   ├── binary/               # 二进制文件兜底 (非文本打开)
+│   ├── html/                 # HTML 预览 (默认 webview, 可切文本)
 │   ├── actions/              # 顶栏布局切换
 │   └── assistant/            # 右侧 AI 面板
 └── styles/
@@ -84,12 +89,12 @@ npm run dev
 ```
 
 dev 模式并发启动两个服务：
-- opencode 进程（端口 4096，cwd 是 `workspace/`）
-- webpack dev server（端口 8080，代理 `/ai/*` 到 4096）
+- opencode 进程（端口 24096，cwd 是 `cwd/`）
+- webpack dev server（端口 8090，代理 `/ai/*` 到 24096）
 
-打开 http://localhost:8080/
+打开 http://localhost:8090/
 
-**前置条件**：先安装 [opencode CLI](https://github.com/sst/opencode)，dev 脚本会自动 `cd workspace && opencode serve`。
+**前置条件**：先安装 [opencode CLI](https://github.com/anomalyco/opencode)（`npm i -g opencode-ai`），dev 脚本会自动 `cd cwd && opencode serve`。
 
 ## 生产构建
 

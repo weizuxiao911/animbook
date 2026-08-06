@@ -16,10 +16,11 @@
 ## 关键事实（AI 必须知道）
 
 1. **纯前端项目**。后端只有 `opencode serve`（一个独立进程），不是 Node 后端。
-2. **opencode 启动目录** = `workspace/`。opencode 的 `/api/path` 返回 `directory` 字段，**这个目录就是工作区根**。不要硬编码 `/workspace`。
+2. **opencode 启动目录** = `cwd/`（package.json `dev:opencode` 脚本里 `cd cwd`）。opencode 的 `GET /ai/path`（Accept: application/json）返回 `directory` 字段，**这个目录就是工作区根**。不要硬编码 `/workspace`（旧名，已废弃）。
 3. **CDP 调试入口** = opencode 暴露 `/ai/pty/...` 走 WebSocket。opencode pty 终端已集成（见 `src/commands/terminal/`）。
 4. **AI 面板**（右侧）= 内置 React 组件，**不要**用 OpenSumi 框架的 AI 面板。
 5. **PDF 阅读器**（双击 `.pdf` 文件触发，编辑器组件）= 内置 React 组件，**不要**用 monaco 文本编辑器打开（PDF 是二进制）。
+6. **平台感知**。浏览器与 opencode 同机（本地部署模型），`src/commands/platform.ts` 用 `navigator.userAgentData`/UA 判断宿主系统并缓存。所有 shell 命令、路径分隔符都要过它：Windows → `powershell.exe`（`-NoProfile -NonInteractive -Command`）+ `\`，macOS → `/bin/zsh`，Linux → `/bin/bash`。**不要**写死 `/bin/sh`/`rm -rf`/`mkdir -p` 或 `/` 拼接路径。
 
 ## 目录结构
 
@@ -31,23 +32,27 @@ animbook/
 │   ├── commands/
 │   │   ├── sandbox.ts              # OpenCode SDK 客户端 (单例)
 │   │   ├── fs.ts                   # FS API: 读 / 写 / PTY shell 调用, 暴露 __ANIMBOOK_FS_API__
+│   │   ├── platform.ts             # 平台判断 (UA/UA-CH) + 默认 shell/转义/路径工具, 全部平台逻辑走这里
 │   │   └── terminal/               # OpenCode PTY 桥 + OpenSumi 终端模块
 │   ├── config/
 │   │   ├── runtime.ts              # OverlayFS + 同步钩子 (onDidSaveTextDocument → 写宿主)
 │   │   ├── slots.ts                # 主区/侧栏/底部布局, workspaceDir 动态注入
+│   │   ├── layout.tsx              # 默认布局 (默认展开资源管理器)
 │   │   └── preferences.ts          # CodeBlitz defaultPreferences
 │   ├── extensions/
 │   │   ├── welcome/                # 欢迎页 (空工作区展示)
-│   │   ├── pdf-reader/             # PDF 阅读器 (pdfjs-dist v4)
+│   │   ├── pdf/                    # PDF 阅读器 (pdfjs-dist v4)
+│   │   ├── binary/                 # 二进制文件兜底 (非文本打开)
+│   │   ├── html/                   # HTML 预览 (默认 webview, 可切文本编辑)
 │   │   ├── actions/                # 顶栏布局切换按钮
 │   │   └── assistant/              # 右侧 AI 面板 (opencode SDK 集成)
 │   └── styles/
 │       ├── overrides.css           # OpenSumi/VSCode 主题覆盖 + 面板背景
 │       └── slots.css               # (未启用, 旧版)
-├── workspace/                      # opencode serve 的 cwd; 用户文件放这里
+├── cwd/                            # opencode serve 的 cwd; 用户文件放这里
 ├── package.json
 ├── tsconfig.json
-├── webpack.config.js               # 含 /ai → http://127.0.0.1:4096 代理, dev 必需
+├── webpack.config.js               # 含 /ai → http://127.0.0.1:24096 代理, dev 必需
 └── .workspace/                     # 临时目录 (log, dev pids)
 ```
 
@@ -55,17 +60,17 @@ animbook/
 
 ```bash
 npm install
-npm run dev        # 并发启动 opencode (port 4096) + webpack dev (port 8080)
+npm run dev        # 并发启动 opencode (port 24096) + webpack dev (port 8090)
 npm run build      # 生产构建
 ```
 
-dev 时 dev server proxy：`/ai/*` → `http://127.0.0.1:4096/*`，这是 opencode API 入口。
+dev 时 dev server proxy：`/ai/*` → `http://127.0.0.1:24096/*`，这是 opencode API 入口。
 
 ## 架构约束
 
 ### 1. PDF 阅读器
 
-- 实现：`src/extensions/pdf-reader/PdfReaderView.tsx`
+- 实现：`src/extensions/pdf/PdfReaderView.tsx`
 - 依赖：pdfjs-dist@4.10.38
 - 关键路径：
   - 注册：module.ts 用 `@Domain(BrowserEditorContribution)`（**容易漏**，漏了不报错但 resolver 永不触发）
@@ -78,14 +83,24 @@ dev 时 dev server proxy：`/ai/*` → `http://127.0.0.1:4096/*`，这是 openco
 - 实现：`src/commands/terminal/`
 - 把 OpenCode `/pty/*` WebSocket 端点桥接到 OpenSumi 的 `ITerminalServiceClient` 接口
 - 关键坑：v2 SDK 的 Pty 接口路径不同（v1 是 `/pty/{id}/connect`，v2 通过 `connectToken` 拿 ticket）
+- 默认 shell 平台感知：macOS `/bin/zsh`、Linux `/bin/bash`、Windows `powershell.exe`（交互模式不加 `-i`）
 
 ### 3. FS API
 
 - 实现：`src/commands/fs.ts`
-- 暴露：`window.__ANANIMBOOK_FS_API__`（注意拼写是 `__ANIMBOOK_FS_API__`）
+- 暴露：`window.__ANIMBOOK_FS_API__`（注意**不是** `__ANANIMBOOK_FS_API__`）
 - 读取路径走 v1 endpoint `/api/fs/read/{name}?directory=...`（v2 SDK `fs.read` 500）
+- shell 命令平台感知（`platform.ts`）：Windows 用 PowerShell 原生命令（`New-Item`/`Remove-Item`/`Get-ChildItem`/`[IO.File]::WriteAllBytes`），路径分隔符 `\`
 
-### 4. 右下角 confirm 弹框处理
+### 4. 平台感知
+
+- 实现：`src/commands/platform.ts`（新增平台逻辑一律加这里，别散落各处）
+- 判断优先级：`navigator.userAgentData.platform` → `navigator.userAgent` 正则 → `unknown`（按 Linux 兜底），结果缓存
+- 提供：`getPlatform`/`isWindows`/`getDefaultShell`/`shellQuote`/`joinHostPath`/`basename`/`dirname`/`getCodePlatformKey`/`getOperatingSystem`
+- 依赖它：`fs.ts`（runShell 与全部文件命令）、`OpenCodePtyService.ts`（默认 shell、getOS、detectAvailableProfiles）
+- IDE 相对路径始终是正斜杠（OpenSumi URI 约定），只有**宿主机绝对路径**需要按平台转换
+
+### 5. 右下角 confirm 弹框处理
 
 `src/index.tsx` 启动时替换 `window.confirm`，拦截"异常的行终止符"弹框（OpenSumi 对未知扩展名 PDF 会触发）。
 
@@ -93,9 +108,10 @@ dev 时 dev server proxy：`/ai/*` → `http://127.0.0.1:4096/*`，这是 openco
 
 1. **不要用 `width: 100%` 给 PdfReaderView 根元素**。OpenSumi 编辑器容器链 (`kt_editor_components` 等) 没声明 width，会用内容宽度撑开导致 PDF 渲染异常。改用 `position: absolute; inset: 0`。
 2. **不要在 PdfReaderContribution 上漏 `@Domain(BrowserEditorContribution)`**。OpenSumi 靠 `@Domain` 收集器找 resolver，漏了则永不被调用。
-3. **不要在 `cd workspace` 后用 `relative path` 写文件**。opencode cwd 在 workspace，但前端路径是 IDE 相对路径，需要 `toHostPath()` 转绝对。
-4. **webpack-dev-server 启动 OOM 频繁**。已经加了 `NODE_OPTIONS="--max-old-space-size=4096"`，重启脚本要带上这个。
+3. **不要在 `cd cwd` 后用 `relative path` 写文件**。opencode cwd 在 cwd，但前端路径是 IDE 相对路径，需要 `toHostPath()` 转绝对。
+4. **webpack-dev-server 启动 OOM 频繁**。webpack.config.js 里没配置内存上限，大改后重启 dev 若 OOM，用 `NODE_OPTIONS="--max-old-space-size=4096"` 手动带上。
 5. **不要假设 v2 SDK 接口全可用**。`fs.read` 500、`session.shell` 接口变化，必要时降级到 v1 endpoint 直连。
+6. **不要绕开 `platform.ts` 写死 POSIX 命令/路径**。`/bin/sh`、`rm -rf`、`mkdir -p`、`/` 拼接只适合类 Unix，Windows 用户会直接挂；一律用 `isWindows()` 分支或 `joinHostPath`/`shellQuote`。
 
 ## 与根 AGENTS.md 的关系
 
