@@ -134,7 +134,7 @@ module.exports = () => ({
   devServer: {
     allowedHosts: 'all',
     host: '0.0.0.0',
-    port: 8080,
+    port: 8090,
     historyApiFallback: { disableDotRule: true },
     hot: true,
     client: {
@@ -143,7 +143,7 @@ module.exports = () => ({
     proxy: [
       {
         context: ['/ai'],
-        target: 'http://127.0.0.1:4096',
+        target: 'http://127.0.0.1:24096',
         pathRewrite: { '^/ai': '' },
         changeOrigin: true,
         ws: true,

@@ -8,11 +8,11 @@ import type { IAppRendererProps } from '@codeblitzjs/ide-core';
  */
 export const preferences: IAppRendererProps['appConfig']['defaultPreferences'] = {
   'general.theme': 'opensumi-design-dark-theme',
-  'editor.autoSave': 'afterDelay',
-  'editor.autoSaveDelay': 200,
   'workbench.startupEditor': 'none',
   'breadcrumbs.enabled': false,
   // 禁用预览模式 (OpenSumi key): 单击文件直接打开常驻 tab, 不用斜体预览 tab
   'editor.previewMode': false,
   'editor.enablePreviewFromCodeNavigation': false,
+  'editor.autoSave': 'afterDelay',
+  'editor.autoSaveDelay': 100,
 };

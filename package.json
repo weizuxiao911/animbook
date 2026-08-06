@@ -5,7 +5,7 @@
   "description": "animbook — 可交互式阅读器:CodeBlitz 前端容器 + 内置 AI 面板,业务能力由内置/VSIX 插件承载",
   "scripts": {
     "dev": "concurrently -k -n opencode,web -c blue,green \"npm:dev:opencode\" \"npm:dev:web\"",
-    "dev:opencode": "cd cwd && opencode serve --port 4096 --hostname 0.0.0.0 --cors \"*\"",
+    "dev:opencode": "cd cwd && opencode serve --port 24096 --hostname 0.0.0.0 --cors \"*\"",
     "dev:web": "webpack serve --config webpack.config.js",
     "build": "cross-env NODE_ENV=production webpack --config webpack.config.js"
   },
