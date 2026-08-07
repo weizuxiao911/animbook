@@ -201,7 +201,7 @@ export const SessionsView: React.FC<SessionsViewProps> = (props) => {
       {/* footer */}
       <div style={footerStyle}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <Dot color={ready ? '#22c55e' : '#f87171'} />
+          <Dot color={ready ? 'var(--terminal-ansiGreen, #22c55e)' : 'var(--errorForeground, var(--vscode-errorForeground, #f87171))'} />
           <span style={{ fontSize: 11 }}>
             {ready ? 'opencode 已连接' : 'opencode 未连接'}
           </span>
@@ -390,7 +390,10 @@ const rootStyle: React.CSSProperties = {
 
 const primaryBtnStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-  width: '100%',
+  width: '90%',
+  minWidth: '90%',
+  maxWidth: '90%',
+  margin: '0 auto',
   padding: '10px 12px',
   background: 'var(--button-background, var(--vscode-button-background, #2563eb))',
   color: 'var(--button-foreground, var(--vscode-button-foreground, #fff))',

@@ -219,15 +219,15 @@ const STYLES = `
 .ab-html {
   position: absolute; inset: 0;
   display: flex; flex-direction: column;
-  background: var(--editor-background, #1e1e1e);
-  color: var(--editor-foreground, #e5e7eb);
+  background: var(--editor-background, var(--vscode-editor-background));
+  color: var(--editor-foreground, var(--vscode-editor-foreground));
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
 }
 .ab-html__toolbar {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 12px;
-  background: var(--panel-background, #252526);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: var(--tc-surface-muted, var(--vscode-editorWidget-background));
+  border-bottom: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(128,128,128,0.2)));
   font-size: 13px;
 }
 .ab-html__name {
@@ -235,20 +235,20 @@ const STYLES = `
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ab-html__spacer { flex: 1; }
-.ab-html__saved { color: #4ade80; font-size: 12px; }
+.ab-html__saved { color: var(--terminal-ansiGreen, #22c55e); font-size: 12px; }
 .ab-html__btn {
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(128,128,128,0.25)));
+  background: var(--button-secondaryBackground, rgba(128,128,128,0.12));
   color: inherit;
   padding: 3px 10px; border-radius: 6px;
   font-size: 12px; cursor: pointer;
 }
-.ab-html__btn:hover { background: rgba(255,255,255,0.12); }
+.ab-html__btn:hover { background: var(--list-hoverBackground, rgba(128,128,128,0.2)); }
 .ab-html__btn:disabled { opacity: 0.4; cursor: default; }
 .ab-html__btn--active {
-  background: rgba(99,102,241,0.25);
-  border-color: rgba(99,102,241,0.6);
-  color: #c7d2fe;
+  background: color-mix(in srgb, var(--button-background, #2563eb) 20%, transparent);
+  border-color: color-mix(in srgb, var(--button-background, #2563eb) 50%, transparent);
+  color: var(--button-background, #2563eb);
 }
 .ab-html__body { flex: 1; min-height: 0; position: relative; }
 .ab-html__frame {
@@ -260,8 +260,8 @@ const STYLES = `
 .ab-html__msg {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  color: var(--descriptionForeground, #9ca3af);
+  color: var(--descriptionForeground, var(--vscode-descriptionForeground));
   font-size: 13px;
 }
-.ab-html__msg--error { color: #fca5a5; }
+.ab-html__msg--error { color: var(--errorForeground, var(--vscode-errorForeground, #f87171)); }
 `;

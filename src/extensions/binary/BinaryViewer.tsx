@@ -72,8 +72,8 @@ const STYLES = `
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 6px;
-  background: var(--editor-background, #1e1e1e);
-  color: var(--editor-foreground, #e5e7eb);
+  background: var(--editor-background, var(--vscode-editor-background));
+  color: var(--editor-foreground, var(--vscode-editor-foreground));
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
 }
 .ab-binary__icon {
@@ -85,20 +85,20 @@ const STYLES = `
   max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ab-binary__ext {
-  font-size: 12px; color: var(--descriptionForeground, #9ca3af);
+  font-size: 12px; color: var(--descriptionForeground, var(--vscode-descriptionForeground));
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  background: rgba(255,255,255,0.05);
+  background: var(--list-hoverBackground, rgba(128,128,128,0.12));
   padding: 2px 8px; border-radius: 4px;
 }
 .ab-binary__hint {
   margin-top: 12px;
   font-size: 13px;
-  background: rgba(99,102,241,0.12);
-  border: 1px solid rgba(99,102,241,0.3);
+  background: color-mix(in srgb, var(--button-background, #2563eb) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--button-background, #2563eb) 30%, transparent);
   padding: 6px 14px; border-radius: 8px;
-  color: #c7d2fe;
+  color: var(--button-background, #2563eb);
 }
 .ab-binary__note {
-  font-size: 12px; color: var(--descriptionForeground, #9ca3af);
+  font-size: 12px; color: var(--descriptionForeground, var(--vscode-descriptionForeground));
 }
 `;

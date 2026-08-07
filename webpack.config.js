@@ -12,7 +12,47 @@ module.exports = () => ({
     publicPath: '/',
     clean: true,
   },
-  devtool: 'inline-source-map',
+  cache: {
+    type: 'filesystem',
+    cacheDirectory: path.resolve(__dirname, '.webpack-cache'),
+    // monaco-editor 等大依赖单独缓存, 避免每次 dev rebuild 都全量转译
+    buildDependencies: {
+      config: [__filename],
+    },
+  },
+  optimization: {
+    // 把 monaco-editor 这种超大模块拆到独立 chunk, 避免单个 bundle 过大
+    splitChunks: {
+      chunks: 'all',
+      cacheGroups: {
+        monaco: {
+          test: /[\\/]node_modules[\\/]@opensumi[\\/]monaco-editor-core[\\/]/,
+          name: 'monaco-core',
+          chunks: 'all',
+          priority: 30,
+        },
+        opensumi: {
+          test: /[\\/]node_modules[\\/]@opensumi[\\/]/,
+          name: 'opensumi',
+          chunks: 'all',
+          priority: 20,
+        },
+        codeblitz: {
+          test: /[\\/]node_modules[\\/]@codeblitzjs[\\/]/,
+          name: 'codeblitz',
+          chunks: 'all',
+          priority: 25,
+        },
+        vendors: {
+          test: /[\\/]node_modules[\\/]/,
+          name: 'vendors',
+          chunks: 'all',
+          priority: 10,
+        },
+      },
+    },
+  },
+  devtool: process.env.NODE_ENV === 'production' ? 'source-map' : 'eval-cheap-module-source-map',
   mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.json'],
@@ -34,7 +74,16 @@ module.exports = () => ({
       {
         test: /\.tsx?$/,
         exclude: /node_modules/,
-        use: [{ loader: 'ts-loader', options: { transpileOnly: true } }],
+        use: [{
+          loader: 'ts-loader',
+          options: {
+            transpileOnly: true,
+            experimentalWatchApi: true,
+            // 启用 loader 缓存: 增量构建只重新编译改动文件, 避免 monaco-editor
+            // 等大依赖在每次 webpack-dev-server 重建时被重新走一遍
+            compilerOptions: { sourceMap: false },
+          },
+        }],
       },
       {
         test: /\.css$/,

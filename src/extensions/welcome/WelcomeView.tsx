@@ -98,7 +98,7 @@ const STYLES = `
 .ab-welcome {
   width: 100%; height: 100%;
   display: flex; align-items: center; justify-content: center;
-  background: var(--editor-background, var(--vscode-editor-background));
+  background: var(--tc-panel-bg);
   color: var(--editor-foreground, var(--vscode-editor-foreground));
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
   overflow: auto;
@@ -111,10 +111,10 @@ const STYLES = `
 .ab-welcome__logo {
   width: 72px; height: 72px;
   border-radius: 18px;
-  background: var(--button-background, var(--vscode-button-background, #6366f1));
+  background: var(--button-background, var(--vscode-button-background, #2563eb));
   color: var(--button-foreground, var(--vscode-button-foreground, #fff));
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--button-background, #6366f1) 35%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--button-background, #2563eb) 30%, transparent);
   margin-bottom: 14px;
 }
 .ab-welcome__title {
@@ -131,7 +131,7 @@ const STYLES = `
   font-size: 12px;
   color: var(--descriptionForeground, var(--vscode-descriptionForeground));
   font-family: var(--monaco-monospace-font, ui-monospace, SFMono-Regular, Menlo, monospace);
-  background: var(--input-background, var(--vscode-input-background, rgba(255,255,255,0.04)));
+  background: var(--input-background, var(--vscode-input-background, rgba(128,128,128,0.1)));
   border: 1px solid var(--panel-border, var(--vscode-panel-border, transparent));
   padding: 4px 10px; border-radius: 6px;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -142,26 +142,25 @@ const STYLES = `
 .ab-welcome__btn {
   display: inline-flex; align-items: center; gap: 8px;
   height: 38px; padding: 0 18px;
-  background: var(--button-secondaryBackground, var(--vscode-button-secondaryBackground, rgba(255,255,255,0.06)));
+  background: var(--button-secondaryBackground, var(--vscode-button-secondaryBackground, rgba(128,128,128,0.15)));
   color: var(--button-secondaryForeground, var(--vscode-button-secondaryForeground, var(--editor-foreground)));
-  border: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(255,255,255,0.1)));
+  border: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(128,128,128,0.2)));
   border-radius: 10px;
   font-family: inherit; font-size: 13.5px; font-weight: 500;
   cursor: pointer; transition: background .15s, border-color .15s, transform .05s;
 }
 .ab-welcome__btn:hover {
-  background: var(--list-hoverBackground, var(--vscode-list-hoverBackground, rgba(255,255,255,0.1)));
-  border-color: var(--focusBorder, var(--vscode-focusBorder, rgba(255,255,255,0.18)));
+  background: var(--list-hoverBackground, var(--vscode-list-hoverBackground, rgba(128,128,128,0.2)));
+  border-color: var(--focusBorder, var(--vscode-focusBorder, rgba(128,128,128,0.3)));
 }
 .ab-welcome__btn:active { transform: translateY(1px); }
 .ab-welcome__btn--primary {
-  background: var(--button-background, var(--vscode-button-background, #6366f1));
+  background: var(--button-background, var(--vscode-button-background, #2563eb));
   color: var(--button-foreground, var(--vscode-button-foreground, #fff));
   border-color: transparent;
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--button-background, #6366f1) 35%, transparent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--button-background, #2563eb) 25%, transparent);
 }
 .ab-welcome__btn--primary:hover {
   background: var(--button-hoverBackground, var(--vscode-button-hoverBackground));
-  filter: brightness(1.08);
 }
 `;

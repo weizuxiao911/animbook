@@ -106,18 +106,109 @@
   border: none !important;
 }
 
-/* ============= 主题变量 (跟随 OpenSumi/VSCode 主题, 仅做暗色兜底) ============= */
+/* ============= 主题变量 (跟随 OpenSumi/VSCode 主题, 仅做兜底) ============= */
 :root {
   --tc-panel-bg: var(--editor-background, var(--vscode-editor-background, #181818));
   --tc-panel-fg: var(--editor-foreground, var(--vscode-editor-foreground, #e5e7eb));
-  --tc-border: var(--panel-border, var(--vscode-panel-border, rgba(255, 255, 255, 0.06)));
-  --tc-scrollbar: var(--scrollbarSlider-background, rgba(255, 255, 255, 0.18));
+  --tc-border: var(--panel-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.2)));
+  --tc-scrollbar: var(--scrollbarSlider-background, rgba(128, 128, 128, 0.3));
 
-  /* card 式分层: 各槽位用接近但不同的背景, 形成 "一块块" 的视觉 */
+  /* card 式分层: 明暗主题均不用灰色, 面板用编辑器底色 + 极轻微偏移 */
   --tc-surface-base: var(--editor-background, #181818);
-  --tc-surface-muted: color-mix(in srgb, var(--tc-surface-base) 92%, #000);
-  --tc-surface-raised: color-mix(in srgb, var(--tc-surface-base) 96%, #fff);
-  --tc-surface-edge: color-mix(in srgb, var(--tc-surface-base) 88%, #000);
+  --tc-surface-muted: color-mix(in srgb, var(--tc-surface-base) 97%, #000);
+  --tc-surface-raised: color-mix(in srgb, var(--tc-surface-base) 97%, #fff);
+  --tc-surface-edge: color-mix(in srgb, var(--tc-surface-base) 94%, #000);
+}
+
+/* 亮色主题: 主按钮强制蓝色 (背景白时按钮变透明不可见) — 只作用于亮色主题 */
+body.vs .ab-sessions-root > div > button,
+body.vs-light .ab-sessions-root > div > button,
+body.design-light .ab-sessions-root > div > button {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+
+/* 亮色主题: codeblitz-root 背景 fcfcfc + 编辑区 fcfcfc + 用阴影替代分割线 */
+codeblitz-root.codeblitz-light,
+body.vs codeblitz-root,
+body.vs-light codeblitz-root,
+body.design-light codeblitz-root {
+  background: #fcfcfc !important;
+}
+.vs .box-panel___wfGj8,
+.codeblitz-light .box-panel___wfGj8 {
+  background: #fcfcfc !important;
+}
+/* 编辑器主区背景 fcfcfc */
+.vs .kt_editor_body___HSrwN,
+.vs .kt_editor_components___cmFFV,
+.vs .kt_editor_component___hOjMR,
+.vs .kt_workbench_editor___JmqFp,
+.vs .kt_editor_main_wrapper___x1f2H,
+.vs .kt_editor_group____46Ak,
+.vs .ab-welcome,
+.codeblitz-light .kt_editor_body___HSrwN,
+.codeblitz-light .kt_editor_components___cmFFV,
+.codeblitz-light .kt_editor_component___hOjMR,
+.codeblitz-light .kt_workbench_editor___JmqFp,
+.codeblitz-light .kt_editor_main_wrapper___x1f2H,
+.codeblitz-light .kt_editor_group____46Ak,
+.codeblitz-light .ab-welcome {
+  background: #fcfcfc !important;
+  background-color: #fcfcfc !important;
+}
+/* 亮色主题: 用阴影做面板分隔 (替代之前的 border / 分割线) */
+.vs [class*="left_slot___"],
+.vs [class*="design_left_slot"],
+.vs [class*="right_slot___"],
+.vs [class*="design_right_slot"],
+.vs [class*="bottom_slot___"],
+.vs [class*="design_bottom_slot"] {
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.05);
+}
+/* 暗色主题: 微弱分隔阴影 */
+[class*="left_slot___"],
+[class*="design_left_slot"],
+[class*="right_slot___"],
+[class*="design_right_slot"] {
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+}
+.vs .box-panel___wfGj8 > .wrapper___nRQsx:first-child,
+.codeblitz-light .box-panel___wfGj8 > .wrapper___nRQsx:first-child {
+  background: #ffffff !important;
+}
+.vs,
+.vs-light,
+.codeblitz-light,
+body.design-light,
+body.vs-light,
+body.vs,
+.codeblitz-root.codeblitz-light {
+  --tc-panel-bg: #ffffff;
+  --tc-panel-fg: #1f2328;
+  --tc-border: rgba(0, 0, 0, 0.1);
+  --tc-surface-base: #ffffff;
+  --tc-surface-muted: #ffffff;
+  --tc-surface-raised: #ffffff;
+  --tc-surface-edge: #ffffff;
+  --button-background: #ffffff;
+  --button-foreground: #1f2328;
+  --button-hoverBackground: #f3f4f6;
+  --button-secondaryBackground: #f3f4f6;
+  --button-secondaryForeground: #1f2328;
+  --button-secondaryHoverBackground: #e5e7eb;
+  --button-border: rgba(0, 0, 0, 0.12);
+  --input-background: #ffffff;
+  --input-foreground: #1f2328;
+  --input-border: rgba(0, 0, 0, 0.15);
+  --focusBorder: #2563eb;
+  --list-hoverBackground: rgba(0, 0, 0, 0.04);
+  --list-activeSelectionBackground: rgba(37, 99, 235, 0.1);
+  --editorWidget-background: #ffffff;
+  --editorWidget-foreground: #1f2328;
+  --editorWidget-border: rgba(0, 0, 0, 0.12);
+  --sideBar-background: #ffffff;
+  --activityBar-background: #ffffff;
 }
 
 /* 编辑器组件本体背景统一 (#151b21 → #181818) */
@@ -161,6 +252,55 @@
   background: var(--tc-panel-bg) !important;
   border: none !important;
   border-radius: 0 !important;
+}
+
+/* 亮色主题: 编辑器 tab 栏背景纯白 + 激活 tab 白色底 + 蓝色下划线 */
+.vs [class*="kt_editor_tabs_scroll_wrapper"],
+.vs [class*="editorGroupHeader"],
+.vs [class*="editor_tab_block_container"],
+.codeblitz-light [class*="kt_editor_tabs_scroll_wrapper"],
+.codeblitz-light [class*="editorGroupHeader"],
+.codeblitz-light [class*="editor_tab_block_container"] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #1f2328;
+}
+.vs [class*="editor_tab_block_container"][class*="active"],
+.vs [class*="editor_tab_block_container"].active,
+.codeblitz-light [class*="editor_tab_block_container"][class*="active"],
+.codeblitz-light [class*="editor_tab_block_container"].active {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  border-bottom: 2px solid #2563eb !important;
+}
+/* 亮色主题: 关闭 tab 按钮 hover 等所有 tab 内部元素也是白色 */
+.vs [class*="editor_tab_block_container"] *,
+.codeblitz-light [class*="editor_tab_block_container"] * {
+  background-color: transparent !important;
+}
+
+/* 亮色主题: 用户指定的 tab 容器/动作/激活指示器背景统一白色 */
+.vs .kt_editor_tabs___kpW3G,
+.vs .editor_actions___bbCcz,
+.vs .design-kt_editor_tabs_content___sE9BY,
+.vs .design-kt_editor_tabs_current_last___eDkBF,
+.vs .design-kt_editor_tab_current___TitpO::before,
+.codeblitz-light .kt_editor_tabs___kpW3G,
+.codeblitz-light .editor_actions___bbCcz,
+.codeblitz-light .design-kt_editor_tabs_content___sE9BY,
+.codeblitz-light .design-kt_editor_tabs_current_last___eDkBF,
+.codeblitz-light .design-kt_editor_tab_current___TitpO::before {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
+/* 右栏 (AI 面板) 取消最小宽度限制 — 允许拖拽到任意窄 */
+[class*="right_slot___"],
+[class*="design_right_slot"],
+#ai-panel-default,
+[id^="ai-panel-default"] {
+  min-width: 0 !important;
 }
 
 /* 底部面板（问题/输出）背景统一 */
@@ -274,9 +414,15 @@
 }
 
 /* ============= right slot 折叠 =============
-   OpenSumi 的 toggleSlot 折叠 right 只隐藏竖 tabbar, 面板还占位.
-   ActionsView.toggleRight 里用 JS 手动隐藏面板 + 压容器宽度.
-   这里不需要 CSS 规则. */
+   用 resize-handle 的存在性判断展开态 (handle 渲染在 #main-horizontal split-panel 层):
+   - resize-handle-horizontal 存在 → 展开, 宽度由 OpenSumi 管理 (不干预)
+   - 不存在 → 折叠态, 固定 49px (tabbar 宽度) */
+#main-horizontal:not(:has([class*="resize-handle-horizontal"])) #opensumi-right-tabbar-panel {
+  width: 49px !important;
+  min-width: 49px !important;
+  flex: 0 0 49px !important;
+  overflow: hidden !important;
+}
 
 /* ============= 右侧 AI 面板 ============= */
 /* 隐藏 OpenSumi view-container 顶部标题条 ("AI 助手" h1), AiPanel 自带顶栏 */

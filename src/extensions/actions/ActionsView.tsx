@@ -139,7 +139,19 @@ export const ActionsView: React.FC = () => {
   );
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, width: '100%', height: '100%', padding: '0 8px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', height: '100%', padding: '0 8px' }}>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 8,
+        fontSize: 13, fontWeight: 700, letterSpacing: 0.2,
+        color: 'var(--editor-foreground, var(--vscode-editor-foreground, #e5e7eb))',
+        paddingLeft: 4, userSelect: 'none',
+      }}>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 6 L12 18 L19 6" />
+        </svg>
+        animbook
+      </span>
+      <span style={{ flex: 1 }} />
       <button type="button" title={isDark ? '切换到浅色主题' : '切换到深色主题'} onClick={toggleTheme} style={iconBtnStyle}>
         {isDark ? <SunIcon /> : <MoonIcon />}
       </button>

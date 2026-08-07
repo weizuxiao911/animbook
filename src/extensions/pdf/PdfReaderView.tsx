@@ -711,13 +711,13 @@ const STYLES = `
   display: none;
   max-width: 320px;
   padding: 8px 10px;
-  background: #2d2d30;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--editorWidget-background, var(--vscode-editorWidget-background, #2d2d30));
+  border: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(128,128,128,0.25)));
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
   font-size: 12px;
-  color: #e5e7eb;
+  color: var(--editorWidget-foreground, var(--vscode-editorWidget-foreground, #e5e7eb));
   pointer-events: none;
   word-break: break-word;
 }
@@ -726,20 +726,20 @@ const STYLES = `
   margin-bottom: 3px;
 }
 .ab-pdf-tip__preview {
-  color: #9ca3af;
+  color: var(--descriptionForeground, var(--vscode-descriptionForeground, #9ca3af));
   white-space: pre-wrap;
   max-height: 120px;
   overflow: hidden;
 }
 .ab-pdf-tip__action {
   margin-top: 5px;
-  color: #a5b4fc;
+  color: var(--textLink-foreground, var(--vscode-textLink-foreground, #3794ff));
   font-weight: 500;
 }
 .ab-pdf__error {
   position: absolute; inset: 0;
   margin: auto;
-  color: #fca5a5; font-size: 14px; padding: 20px;
+  color: var(--errorForeground, var(--vscode-errorForeground, #f87171)); font-size: 14px; padding: 20px;
   text-align: center;
   display: flex; align-items: center; justify-content: center;
 }
@@ -748,35 +748,35 @@ const STYLES = `
   margin: auto;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 14px;
-  color: #d4d4d4; font-size: 13px;
-  background: var(--editor-background, #1e1e1e);
+  color: var(--descriptionForeground, var(--vscode-descriptionForeground, #9ca3af)); font-size: 13px;
+  background: var(--editor-background, var(--vscode-editor-background));
   z-index: 5;
 }
 .ab-pdf__loadingText { font-variant-numeric: tabular-nums; }
-.ab-pdf__loadingText span { color: #fff; }
-.ab-pdf__progress { width: min(360px, 60%); height: 4px; background: rgba(255,255,255,0.15); border-radius: 2px; overflow: hidden; }
-.ab-pdf__progressBar { height: 100%; background: #6366f1; transition: width .12s linear; }
+.ab-pdf__loadingText span { color: var(--editor-foreground, var(--vscode-editor-foreground, #e5e7eb)); }
+.ab-pdf__progress { width: min(360px, 60%); height: 4px; background: var(--progressBar-inactiveBackground, rgba(128,128,128,0.2)); border-radius: 2px; overflow: hidden; }
+.ab-pdf__progressBar { height: 100%; background: var(--progressBar-background, var(--vscode-progressBar-background, #2563eb)); transition: width .12s linear; }
 @keyframes ab-pdf-indet { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
 .ab-pdf__toolbar {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 6px;
   padding: 6px 10px;
-  background: #252526;
-  border-top: 1px solid #1e1e1e;
-  color: #cccccc;
+  background: var(--tc-surface-muted, var(--vscode-editorWidget-background, #252526));
+  border-top: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(128,128,128,0.2)));
+  color: var(--editor-foreground, var(--vscode-editor-foreground, #cccccc));
 }
 .ab-pdf__btn {
   height: 26px; min-width: 26px; padding: 0 8px;
-  background: #3a3a3a; color: inherit;
+  background: var(--button-secondaryBackground, rgba(128,128,128,0.2)); color: inherit;
   border: 1px solid transparent; border-radius: 5px;
   font-family: inherit; font-size: 12.5px; cursor: pointer;
 }
-.ab-pdf__btn:hover:not(:disabled) { background: #505050; }
+.ab-pdf__btn:hover:not(:disabled) { background: var(--button-secondaryHoverBackground, rgba(128,128,128,0.32)); }
 .ab-pdf__btn:disabled { opacity: .4; cursor: not-allowed; }
 .ab-pdf__pageno { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; }
 .ab-pdf__pagenoInput {
   width: 36px; text-align: center;
-  background: #3a3a3a; color: inherit;
+  background: var(--input-background, rgba(128,128,128,0.15)); color: inherit;
   border: 1px solid transparent; border-radius: 4px; padding: 2px 4px; font: inherit;
 }
 `;

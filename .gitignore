@@ -31,3 +31,6 @@ out/
 .playwright-mcp/
 .userData/
 .workspace/
+
+# webpack 编译缓存 (filesystem cache, 可随时重建)
+.webpack-cache/
