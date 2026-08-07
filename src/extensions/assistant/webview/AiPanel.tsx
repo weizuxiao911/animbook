@@ -1270,9 +1270,10 @@ const MessageRow: React.FC<{
 const styles = `
 .tc-ai {
   /* ========== 主题色板: 优先使用 IDE/VSCode 主题变量, 暗色兜底 ========== */
-  --ai-bg: var(--editor-background, #181818);
+  /* 与 left slot 保持一致 (var(--tc-surface-muted)) */
+  --ai-bg: var(--tc-surface-muted, var(--editor-background, #181818));
   /* 弹层/浮起表面: 不允许透明, 用 editorWidget-background (VSCode 标准弹层色) */
-  --ai-bg-elev: var(--editorWidget-background, var(--sideBar-background, var(--editor-background, #1c1c22)));
+  --ai-bg-elev: var(--editorWidget-background, var(--sideBar-background, var(--ai-bg, #1c1c22)));
   --ai-bg-input: color-mix(in srgb, var(--ai-fg, #e5e7eb) 5%, var(--ai-bg-elev));
   --ai-fg: var(--editor-foreground, #e5e7eb);
   --ai-fg-muted: var(--descriptionForeground, #9ca3af);

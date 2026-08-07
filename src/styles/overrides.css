@@ -36,11 +36,50 @@
   border-radius: 0px !important;
 }
 
-/* CodeBlitz 默认 landing/welcome 页面 (CodeBlitz logo + "打开命令面板") 隐藏;
-   client 自己提供 WelcomeView. class 名是 hash: landing___EONrE, 用前缀匹配抗 hash 变动 */
-[class^="landing___"],
-[class*=" landing___"] {
+/* CodeBlitz 默认 landing/welcome 页面 (CodeBlitz logo + "打开命令面板") 隐藏内部内容;
+   class 名带 hash (emptyContainer___f0k_Y), 用前缀匹配抗 hash 变动.
+   自定义 WelcomeView 通过 welcome://home 打开后会占据编辑区, 不受影响 */
+[class^="emptyContainer___"],
+[class*=" emptyContainer___"] {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: transparent !important;
+}
+[class^="emptyContainer___"] > *,
+[class*=" emptyContainer___"] > * {
   display: none !important;
+}
+/* 无文件 / 无 welcome 时, 空编辑器背景显示艺术化 animbook 主题 */
+[class^="emptyContainer___"]::before,
+[class*=" emptyContainer___"]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 45%, color-mix(in srgb, var(--button-background, #2563eb) 12%, transparent) 0%, transparent 70%);
+  pointer-events: none;
+}
+[class^="emptyContainer___"]::after,
+[class*=" emptyContainer___"]::after {
+  content: 'animbook';
+  position: relative;
+  z-index: 1;
+  font-size: clamp(42px, 6vw, 78px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--editor-foreground, #e5e7eb) 95%, white) 0%,
+    color-mix(in srgb, var(--button-background, #2563eb) 80%, var(--editor-foreground, #e5e7eb)) 50%,
+    color-mix(in srgb, var(--editor-foreground, #e5e7eb) 70%, var(--button-background, #2563eb)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 60px color-mix(in srgb, var(--button-background, #2563eb) 20%, transparent);
+  pointer-events: none;
+  user-select: none;
 }
 
 /* 编辑器 active/inactive tab 清圆角 */
@@ -178,9 +217,20 @@
 }
 
 /* 顶栏: 与侧栏同档 */
-.tc-topbar {
+.tc-topbar,
+[class*="top_slot___"],
+[class*="design_top_slot"],
+[class*="top_slot"],
+[class*="design_top"] {
   background: var(--tc-surface-muted) !important;
   border: none !important;
+}
+
+/* top 槽位外层 wrapper 透明, 让 codeblitz-root 的浅色 (#202224) 透过来;
+   给第一个 wrapper (top slot, 28px) 加 muted 背景, 与 left/right 一致 */
+.box-panel___wfGj8 > .wrapper___nRQsx:first-child,
+.codeblitz-root .wrapper___nRQsx:first-child {
+  background: var(--tc-surface-muted) !important;
 }
 
 /* 标签栏 (tab bar) 也跟侧栏同色, 与编辑区自然分层 */
@@ -215,7 +265,11 @@
 .tc-right-panel__body,
 .tc-right-panel .kt-tab-panel,
 .tc-right-panel [class*="view_container___"],
-.tc-right-panel [class*="panel_wrap___"] {
+.tc-right-panel [class*="panel_wrap___"],
+/* split-panel 内层容器 (sessions-default / ai-panel-default / explorer) 跟 left slot 同色 */
+#sessions-default,
+#ai-panel-default,
+.tc-ai {
   background: var(--tc-surface-muted) !important;
 }
 
