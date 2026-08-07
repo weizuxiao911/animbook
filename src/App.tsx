@@ -9,6 +9,7 @@ import { getDefaultAppConfig } from '@codeblitzjs/ide-core';
 import { buildSlots } from './config/slots';
 import { AssistantModule } from './extensions/assistant';
 import { ActionsModule } from './extensions/actions';
+import { SessionsModule } from './extensions/sessions';
 import { WelcomeModule } from './extensions/welcome';
 import { PdfReaderModule } from './extensions/pdf';
 import { BinaryModule } from './extensions/binary';
@@ -96,6 +97,7 @@ export const App: React.FC = () => {
           HtmlModule,
           AssistantModule,
           ActionsModule,
+          SessionsModule,
         ],
       }}
       runtimeConfig={runtimeConfig as any}

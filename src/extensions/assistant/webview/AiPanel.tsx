@@ -205,9 +205,20 @@ export const AiPanel: React.FC = () => {
     window.addEventListener('animbook:ai-reveal', onReveal);
     const onPrefs = () => setModelsRefresh((n) => n + 1);
     window.addEventListener('animbook:ai-modelPrefs-changed', onPrefs);
+    const onSelectSession = (e: Event) => {
+      const id = (e as CustomEvent<{ sessionID?: string }>).detail?.sessionID;
+      if (typeof id === 'string' && id) {
+        setSessionID(id);
+        // 触发会话列表刷新 + 消息列表刷新依赖的副作用键
+        setSessions((prev) => prev.slice());
+        setTimeout(() => taRef.current?.focus(), 120);
+      }
+    };
+    window.addEventListener('animbook:ai-select-session', onSelectSession);
     return () => {
       window.removeEventListener('animbook:ai-reveal', onReveal);
       window.removeEventListener('animbook:ai-modelPrefs-changed', onPrefs);
+      window.removeEventListener('animbook:ai-select-session', onSelectSession);
     };
   }, []);
 

@@ -282,10 +282,43 @@
   display: none !important;
 }
 
+/* sessions 拓展: 隐藏 left slot 顶部 "会话" 标题条 (SessionsView 自带布局) */
+.sessions-default [class*="panel_titlebar___"] {
+  display: none !important;
+}
+.sessions-default [data-viewlet-id="sessions-default"] [class*="panel_titlebar"],
+div[data-viewlet-id="sessions-default"] [class*="titlebar"] {
+  display: none !important;
+}
+
 /* loading / toast 槽位容器: fixed overlay 自管显隐, 容器占位会撑高 root
    (2430=3×810) 触发滚动 → 底部空白。与 login/user 同样 height:0 */
 .codeblitz-root > .resize-wrapper:has(.tc-loading-root),
 .codeblitz-root > .resize-wrapper:has(.tc-toast-root) {
   height: 0 !important;
   overflow: hidden !important;
+}
+
+/* sessions 拓展: 历史会话刷新按钮旋转动画 */
+@keyframes ab-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* sessions 拓展: 历史会话列表隐藏 webkit 滚动条 (Firefox 用 scrollbar-width: none 即可) */
+.ab-sessions-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* sessions 拓展: 活动栏图标 — 机器人 (会话/AI 入口)
+   用 mask 把 SVG 路径转成 currentColor 形状, 跟随主题前景色 */
+.activity-icon.ab-logo-v {
+  -webkit-mask: url("data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='M12 2a1 1 0 0 1 1 1v1.07A7 7 0 0 1 19 11v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-5a7 7 0 0 1 6-6.93V3a1 1 0 0 1 1-1zM8 13.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm8 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM3 13h2v4H3v-4zm16 0h2v4h-2v-4z'/%3E%3C/svg%3E") center / 24px 24px no-repeat;
+  mask: url("data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='M12 2a1 1 0 0 1 1 1v1.07A7 7 0 0 1 19 11v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-5a7 7 0 0 1 6-6.93V3a1 1 0 0 1 1-1zM8 13.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm8 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM3 13h2v4H3v-4zm16 0h2v4h-2v-4z'/%3E%3C/svg%3E") center / 24px 24px no-repeat;
+  background: currentColor;
+  font-family: inherit;
+}
+.activity-icon.ab-logo-v::before {
+  content: none;
 }

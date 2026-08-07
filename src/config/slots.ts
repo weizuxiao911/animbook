@@ -27,6 +27,7 @@ export function buildSlots(workspaceDir: string): Slots {
       },
       [SlotLocation.left]: {
         modules: [
+          'sessions-default',
           '@opensumi/ide-explorer',
         ],
       },
