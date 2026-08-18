@@ -16,11 +16,12 @@
 ## 关键事实（AI 必须知道）
 
 1. **纯前端项目**。后端只有 `opencode serve`（一个独立进程），不是 Node 后端。
-2. **opencode 启动目录** = `cwd/`（package.json `dev:opencode` 脚本里 `cd cwd`）。opencode 的 `GET /ai/path`（Accept: application/json）返回 `directory` 字段，**这个目录就是工作区根**。不要硬编码 `/workspace`（旧名，已废弃）。
+2. **opencode 启动目录** = `workspace/`（package.json `dev:opencode` 脚本里 `cd workspace`）。opencode 的 `GET /ai/path`（Accept: application/json）返回 `directory` 字段，**这个目录就是工作区根**。旧名 `cwd/` 已废弃。
 3. **CDP 调试入口** = opencode 暴露 `/ai/pty/...` 走 WebSocket。opencode pty 终端已集成（见 `src/commands/terminal/`）。
 4. **AI 面板**（右侧）= 内置 React 组件，**不要**用 OpenSumi 框架的 AI 面板。
 5. **PDF 阅读器**（双击 `.pdf` 文件触发，编辑器组件）= 内置 React 组件，**不要**用 monaco 文本编辑器打开（PDF 是二进制）。
 6. **平台感知**。浏览器与 opencode 同机（本地部署模型），`src/commands/platform.ts` 用 `navigator.userAgentData`/UA 判断宿主系统并缓存。所有 shell 命令、路径分隔符都要过它：Windows → `powershell.exe`（`-NoProfile -NonInteractive -Command`）+ `\`，macOS → `/bin/zsh`，Linux → `/bin/bash`。**不要**写死 `/bin/sh`/`rm -rf`/`mkdir -p` 或 `/` 拼接路径。
+7. **主题机制**。默认主题 `opensumi-design-dark-theme`（`src/config/preferences.ts` 的 `general.theme`），顶栏太阳/月亮按钮切换浅色（`src/extensions/actions/ActionsView.tsx`）。主题 CSS 变量（`--editor-*`/`--vscode-*`/`--editorWidget-*`）由 CodeBlitz/OpenSumi **按当前主题 JS 动态注入**，不是静态 CSS。`src/styles/overrides.css` 的 `:root` 定义 `--tc-*` 色板（跟随主题做兜底），并在 `.vs`/`.vs-light`/`.codeblitz-light`/`body.design-light` 下把 `--tc-*` 与按钮相关变量强制覆盖为亮色值（白底深字）。
 
 ## 目录结构
 
@@ -49,7 +50,7 @@ animbook/
 │   └── styles/
 │       ├── overrides.css           # OpenSumi/VSCode 主题覆盖 + 面板背景
 │       └── slots.css               # (未启用, 旧版)
-├── cwd/                            # opencode serve 的 cwd; 用户文件放这里
+├── workspace/                       # opencode serve 的工作区根; 用户文件放这里 (gitignore)
 ├── package.json
 ├── tsconfig.json
 ├── webpack.config.js               # 含 /ai → http://127.0.0.1:24096 代理, dev 必需
@@ -104,6 +105,13 @@ dev 时 dev server proxy：`/ai/*` → `http://127.0.0.1:24096/*`，这是 openc
 
 `src/index.tsx` 启动时替换 `window.confirm`，拦截"异常的行终止符"弹框（OpenSumi 对未知扩展名 PDF 会触发）。
 
+### 6. AI 面板样式与主题可读性（重要）
+
+- **Chat 面板所有样式内联在 `src/extensions/chat/webview/Chat.tsx` 的 `styles` 模板字符串里**，不在 `.css` 文件。新增组件/弹层时：JSX 里用了什么 class，**必须同步在 `styles` 常量中补定义**——漏定义会导致该元素无样式裸渲染（透明背景/黑底黑字），这是已实际踩过的坑（`/` 命令弹窗 `tc-ai__cmd-pop` 曾因无 CSS 定义完全看不清）。
+- 颜色一律走主题变量链，**不要硬编码纯黑/纯白**：`--ai-*`（面板内）/ `--tc-*`（overrides.css 定义）/ `--editor-*`、`--vscode-*`、`--editorWidget-*`（主题注入）。浅色主题下 `--editor-*` 等会自动变浅，硬编码色会破坏浅色适配。
+- 弹层/浮起表面用 `--ai-bg-elev`（底层是 `--editorWidget-background`），确保不透明、有边框与阴影；`--ai-bg` 跟随面板底色。
+- 主题切换（`ActionsView`）后 OpenSumi 会重算主题变量，组件不用自己监听主题——只要全程用变量，切换自动生效。
+
 ## 已知坑 / 不要踩
 
 1. **不要用 `width: 100%` 给 PdfReaderView 根元素**。OpenSumi 编辑器容器链 (`kt_editor_components` 等) 没声明 width，会用内容宽度撑开导致 PDF 渲染异常。改用 `position: absolute; inset: 0`。
@@ -112,6 +120,8 @@ dev 时 dev server proxy：`/ai/*` → `http://127.0.0.1:24096/*`，这是 openc
 4. **webpack-dev-server 启动 OOM 频繁**。webpack.config.js 里没配置内存上限，大改后重启 dev 若 OOM，用 `NODE_OPTIONS="--max-old-space-size=4096"` 手动带上。
 5. **不要假设 v2 SDK 接口全可用**。`fs.read` 500、`session.shell` 接口变化，必要时降级到 v1 endpoint 直连。
 6. **不要绕开 `platform.ts` 写死 POSIX 命令/路径**。`/bin/sh`、`rm -rf`、`mkdir -p`、`/` 拼接只适合类 Unix，Windows 用户会直接挂；一律用 `isWindows()` 分支或 `joinHostPath`/`shellQuote`。
+7. **AI 面板新增 JSX 元素必须同步补 `styles` 常量定义**（见架构约束 6）。漏了 = 无样式裸渲染，弹窗/弹层会黑得看不清。
+8. **不要硬编码颜色值**。AI 面板与弹层全部走主题变量；硬编码 `#000`/`#fff` 会破坏明暗主题切换的可读性。
 
 ## 与根 AGENTS.md 的关系
 

@@ -12,8 +12,14 @@ import {
   aiDeleteSession,
   aiDeleteAllSessions,
   aiListAgents,
+  aiListSkills,
+  aiListCommands,
   aiSwitchAgent,
   aiGetTodos,
+  aiCompactSession,
+  aiShareSession,
+  aiUnshareSession,
+  aiClearMessages,
   aiReplyQuestion,
   aiRejectQuestion,
   aiListModels,
@@ -48,6 +54,25 @@ const AGENT_DESC: Record<string, string> = {
   explore: '信息检索 · 上下文探索',
 };
 
+/** 客户端本地命令集 — 不走 server 端点, 由前端直接执行 (opencode TUI/web 同款快捷命令)
+ *  - compact: AI 摘要历史消息, 减少后续上下文 token
+ *  - clear:   清空当前会话消息 (保留会话 ID)
+ *  - copy:    复制会话全部消息到剪贴板
+ *  - share:   生成可分享链接 (复制到剪贴板)
+ *  - unshare: 取消会话分享
+ *  - export:  导出会话为 markdown (下载 .md 文件)
+ *  - help:    显示快捷键与命令面板帮助
+ *  hint 是给弹层列表右侧的辅助提示 (如 "[commit|branch|pr]") */
+const CLIENT_COMMANDS: Array<{ cmd: string; desc: string; hint?: string }> = [
+  { cmd: 'compact',  desc: '压缩当前会话上下文', hint: 'AI summary, 释放 tokens' },
+  { cmd: 'clear',    desc: '清空当前会话消息', hint: '保留会话 ID' },
+  { cmd: 'copy',     desc: '复制会话全文到剪贴板', hint: 'markdown 格式' },
+  { cmd: 'share',    desc: '生成并复制可分享链接', hint: '公开只读 URL' },
+  { cmd: 'unshare',  desc: '取消当前会话分享链接', hint: '' },
+  { cmd: 'export',   desc: '导出会话为 .md 文件', hint: '下载到本地' },
+  { cmd: 'help',     desc: '快捷键与命令面板帮助', hint: '' },
+];
+
 function findCurrentTodos(parts: any[]): Array<{ content: string; status: string; priority?: string }> {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
@@ -76,13 +101,13 @@ function formatDuration(start?: number, end?: number): string {
   return `${sec}秒`;
 }
 
-/** question part ID -> { requestID, questions } (模块级, 供 AiPanel SSE 写入 + MessageRow 读取) */
+/** question part ID -> { requestID, questions } (模块级, 供 Chat SSE 写入 + MessageRow 读取) */
 const questionStore = new Map<string, { requestID: string; questions: any[] }>();
 /** 触发 MessageRow 重渲染以读取新写入的 questionStore */
 const questionSubscribers = new Set<() => void>();
 function notifyQuestionChange() { questionSubscribers.forEach((fn) => fn()); }
 
-export const AiPanel: React.FC = () => {
+export const Chat: React.FC = () => {
   // animbook 无登录模块, 直接标记为已登录 (历史保留的兼容代码, 不影响功能)
   const [loggedIn] = useState<boolean>(true)
   useEffect(() => {
@@ -104,6 +129,8 @@ export const AiPanel: React.FC = () => {
   const [showModels, setShowModels] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
   const [showMentions, setShowMentions] = useState(false);
+  const [skills, setSkills] = useState<Array<{ name: string; description?: string; location?: string }>>([]);
+  const [commands, setCommands] = useState<Array<{ name: string; description?: string; source?: string; template?: string; subtask?: boolean }>>([]);
   /** question part ID -> { requestID, questions } 来自 question.v2.asked 事件 */
   const [, setQuestionRev] = useState(0);
   const [activeQuestion, setActiveQuestion] = useState<{ requestID: string; questions: any[] } | null>(null);
@@ -117,6 +144,38 @@ export const AiPanel: React.FC = () => {
   const [modelQuery, setModelQuery] = useState('');
   const [mentionQuery, setMentionQuery] = useState('');
   const [error, setError] = useState('');
+  /** 信息/成功提示 (非错误, 用独立色块, 几秒后自动消失) */
+  const [notice, setNotice] = useState('');
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showNotice = useCallback((msg: string) => {
+    setNotice(msg);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(''), 5000);
+  }, []);
+  /**
+   * 统一 API 错误处理 — 区分"服务端异常"（蓝色 notice, 用户无能为力）与"用户操作错"（红色 error）
+   * - server 5xx / UnknownError / ServiceUnavailable / Unexpected server error → notice
+   * - 其它（用户输入错误、网络断开等）→ error
+   * ctx: 可选上下文前缀, 用于"压缩失败: xxx"等
+   */
+  const setApiError = useCallback((e: any, ctx?: string) => {
+    const tag = e?.data?._tag || e?.name || '';
+    const msg = String(e?.data?.message || e?.message || e);
+    const isServerError =
+      tag === 'UnknownError' ||
+      tag === 'ServerError' ||
+      tag === 'ServiceUnavailableError' ||
+      msg.includes('Unexpected server error') ||
+      msg.toLowerCase().includes('not available') ||
+      (typeof e?.status === 'number' && e.status >= 500) ||
+      (e?.data?.service && typeof e.data.service === 'string');
+    const text = ctx ? `${ctx}: ${msg}` : msg;
+    if (isServerError) {
+      showNotice(text + ' (服务端异常, 可重试或新建会话)');
+    } else {
+      setError(text);
+    }
+  }, [showNotice]);
   const [ready, setReady] = useState<boolean>(() => isAiReady());
   const sessionIDRef = useRef(sessionID);
   sessionIDRef.current = sessionID;
@@ -184,6 +243,14 @@ export const AiPanel: React.FC = () => {
         const ps = await aiListProviders();
         if (!cancelled) setProviders(ps || []);
       } catch (e) { console.warn('[ai] load providers failed', e); }
+      try {
+        const sk = await aiListSkills();
+        if (!cancelled) setSkills(sk || []);
+      } catch (e) { console.warn('[ai] load skills failed', e); }
+      try {
+        const cm = await aiListCommands();
+        if (!cancelled) setCommands(cm || []);
+      } catch (e) { console.warn('[ai] load commands failed', e); }
     };
     void attempt();
     // 沙箱加载完成事件 (opencode 探活通过) → 立即重新拉取 agent/model
@@ -253,7 +320,7 @@ export const AiPanel: React.FC = () => {
     try {
       const list = await aiListSessions();
       setSessions(list || []);
-    } catch (e) { setError(String((e as any)?.message || e)); }
+    } catch (e) { setApiError(e); }
   }, []);
 
   // todos: 官方协议 — GET /session/{sessionID}/todo 拉取 + SSE todo.updated 实时更新
@@ -285,7 +352,7 @@ export const AiPanel: React.FC = () => {
       setRows(rs);
       // 会话切换/刷新时同步官方 todo 列表
       void refreshTodos(target);
-    } catch (e) { setError(String((e as any)?.message || e)); }
+    } catch (e) { setApiError(e); }
   }, [refreshTodos]);
 
   useEffect(() => {
@@ -406,6 +473,8 @@ export const AiPanel: React.FC = () => {
         case 'message.updated': {
           // 全量消息更新 — 事件里的 info 通常不含 parts, 只更新元数据;
           // 消息不存在则插空壳等轮询/delta 填充, 已有消息保留本地累积
+          // 顺带刷新会话列表: 首条 assistant 消息后 server 会生成会话标题
+          if (cur) void loadSessions();
           const info = props.info;
           const messageID = props.messageID || info?.id;
           if (!info || !messageID) {
@@ -457,10 +526,22 @@ export const AiPanel: React.FC = () => {
           }
           break;
         }
-        case 'session.error':
+        case 'session.error': {
           setBusy(false);
-          setError(props.error?.data?.message || props.error?.message || '会话出错');
+          // 复用 setApiError 逻辑: server 错误转 notice
+          const propsErr: any = props.error;
+          const tag = propsErr?.data?._tag || propsErr?.name || '';
+          const msg = String(propsErr?.data?.message || propsErr?.message || '会话出错');
+          const isServerError =
+            tag === 'UnknownError' || tag === 'ServerError' || tag === 'ServiceUnavailableError' ||
+            msg.includes('Unexpected server error');
+          if (isServerError) {
+            showNotice(`${msg} (服务端异常, 可重试或新建会话)`);
+          } else {
+            setError(msg);
+          }
           break;
+        }
         case 'question.asked':
         case 'question.v2.asked': {
           // 事件带 id (que_xxx) + questions — 真正的问题数据源
@@ -492,7 +573,7 @@ export const AiPanel: React.FC = () => {
       cancelled = true;
       stream?.return?.(undefined);
     };
-  }, [loadMessages, ready]);
+  }, [loadMessages, loadSessions, ready]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -505,7 +586,7 @@ export const AiPanel: React.FC = () => {
       setSessionID(sid);
       setRows([]);
       setShowSessions(false);
-    } catch (e) { setError(String((e as any)?.message || e)); }
+    } catch (e) { setApiError(e); }
   }, [ready]);
 
   const selectedModel = useMemo(() => {
@@ -545,7 +626,7 @@ export const AiPanel: React.FC = () => {
     } catch (e) {
       setRows((prev) => prev.filter((r) => r.id !== localId));
       setInput(text);
-      setError(String((e as any)?.message || e));
+      setApiError(e);
     }
   }, [input, busy, sessionID, currentAgent, selectedModel, attachments]);
 
@@ -576,16 +657,210 @@ export const AiPanel: React.FC = () => {
         setSessionID('');
         setRows([]);
       }
-    } catch (e) { setError(String((e as any)?.message || e)); }
+    } catch (e) { setApiError(e); }
   }, [sessionID]);
 
   const onSwitchAgent = useCallback(async (agent: string) => {
     setCurrentAgent(agent);
     setShowAgents(false);
     if (sessionID) {
-      try { await aiSwitchAgent(sessionID, agent); } catch (e) { setError(String((e as any)?.message || e)); }
+      try { await aiSwitchAgent(sessionID, agent); } catch (e) { setApiError(e); }
     }
   }, [sessionID]);
+
+  // 命令列表 = 3 个源按 name 去重:
+//   - client-cmd (本地): /compact /clear /copy /share /unshare /export /help — 选中后执行客户端动作
+//   - command (server /command): /init /review 等带模板 — 选中后用模板发消息
+//   - skill (server /skill): 全部 skill — 选中后填入输入框
+  const commandList = useMemo(() => {
+    const seen = new Set<string>();
+    const list: Array<{ cmd: string; name: string; hint: string; template?: string; subtask?: boolean; source: 'client-cmd' | 'command' | 'skill' }> = [];
+    // 客户端命令
+    for (const c of CLIENT_COMMANDS) {
+      if (seen.has(c.cmd)) continue;
+      seen.add(c.cmd);
+      list.push({ cmd: c.cmd, name: c.desc, hint: c.hint, source: 'client-cmd' });
+    }
+    // server 命令 (init/review 等)
+    for (const c of commands) {
+      if (!c.name || seen.has(c.name)) continue;
+      seen.add(c.name);
+      list.push({ cmd: c.name, name: c.description || '', hint: '', template: c.template, subtask: c.subtask, source: 'command' });
+    }
+    // skill
+    for (const s of skills) {
+      if (!s.name || seen.has(s.name)) continue;
+      seen.add(s.name);
+      list.push({ cmd: s.name, name: s.description || '', hint: '', source: 'skill' });
+    }
+    return list;
+  }, [skills, commands]);
+
+  const visibleAgents = useMemo(
+    () => agents.filter((a: any) => {
+      const id = a.id || a.name;
+      const mode = a.mode || a.data?.mode;
+      return id && !HIDDEN_AGENTS.has(id) && (mode === 'primary' || mode === 'all');
+    }),
+    [agents]
+  );
+
+  // 弹层实时过滤 (必须放在 applyCommand/onKeyDown 之前, 它们 deps 里要引用)
+  const filteredCommands = useMemo(() => {
+    const q = input.match(/(?:^|\s)\/(\S*)$/)?.[1] || '';
+    if (!q) return commandList;
+    const qLower = q.toLowerCase();
+    return commandList.filter((c) => c.cmd.toLowerCase().startsWith(qLower) || c.name.toLowerCase().includes(qLower));
+  }, [commandList, input]);
+
+  const mentionList = useMemo(() => {
+    const q = input.match(/(?:^|\s)[@#](\S*)$/)?.[1] || '';
+    const items: Array<{ id: string; name: string; type: 'agent' | 'file' | 'symbol'; hint?: string }> = [
+      ...visibleAgents.map((a) => ({ id: a.id || a.name, name: a.name || a.id, type: 'agent' as const, hint: AGENT_DESC[a.id || a.name] })),
+    ];
+    if (!q) return items;
+    return items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
+  }, [visibleAgents, input]);
+
+  // 弹层键盘导航: 当前选中项
+  const [cmdIndex, setCmdIndex] = useState(0);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  useEffect(() => { setCmdIndex(0); }, [filteredCommands.length, input]);
+  useEffect(() => { setMentionIndex(0); }, [mentionList.length, input]);
+
+  // 客户端命令执行器 — 严格使用用户当前选中会话
+  const runClientCmd = useCallback(async (cmd: string) => {
+    if (!sessionID) {
+      setError('当前没有选中会话');
+      return;
+    }
+    try {
+      switch (cmd) {
+        case 'compact': {
+          try {
+            await aiCompactSession(sessionID);
+            showNotice('已发起压缩, 完成后会刷新消息');
+            await loadMessages(sessionID);
+          } catch (e: any) {
+            // opencode 1.18.18 的 session.compact 在服务端整体未启用, 任何调用都会失败
+            // (正常会话: ServiceUnavailable; 老旧/损坏会话: UnknownError)
+            // 统一按"服务端未支持"提示 — 用户无能为力, 报红框无意义
+            showNotice('服务端暂未支持压缩 (session.compact 在 opencode 1.18.18 尚未上线)');
+            void e; // 静默 err
+          }
+          break;
+        }
+        case 'clear': {
+          const n = await aiClearMessages(sessionID);
+          showNotice(`已清空 ${n} 条消息`);
+          setRows([]);
+          break;
+        }
+        case 'copy': {
+          const msgs = await aiListMessages(sessionID);
+          const md = msgs.map((m: any) => {
+            const info = m.info || m;
+            const text = (m.parts || info.parts || []).filter((p: any) => p.type === 'text' && !p.synthetic).map((p: any) => p.text).join('');
+            return `**${info.role}**:\n\n${text}\n`;
+          }).join('\n---\n\n');
+          await navigator.clipboard.writeText(md || '(空会话)');
+          showNotice('已复制到剪贴板');
+          break;
+        }
+        case 'share': {
+          const url = await aiShareSession(sessionID);
+          if (url) await navigator.clipboard.writeText(url);
+          showNotice(url ? '分享链接已复制' : '分享失败');
+          break;
+        }
+        case 'unshare': {
+          await aiUnshareSession(sessionID);
+          showNotice('已取消分享');
+          break;
+        }
+        case 'export': {
+          const msgs = await aiListMessages(sessionID);
+          const md = `# Session ${sessionID}\n\n` + msgs.map((m: any) => {
+            const info = m.info || m;
+            const text = (m.parts || info.parts || []).filter((p: any) => p.type === 'text' && !p.synthetic).map((p: any) => p.text).join('');
+            return `## ${info.role}\n\n${text}\n`;
+          }).join('\n---\n\n');
+          const blob = new Blob([md], { type: 'text/markdown' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `session-${sessionID.slice(0, 8)}.md`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+          break;
+        }
+        case 'help': {
+          showNotice([
+            '快捷键:',
+            '  ↑↓  Enter — 选择 / 弹层项',
+            '  Esc  Tab — 关闭弹层 / 补全',
+            '  Enter — 发送消息',
+            '  Shift+Enter — 换行',
+            '  / — 命令 · @ — agent/文件引用',
+          ].join('\n'));
+          break;
+        }
+        default:
+          setError(`未知客户端命令: /${cmd}`);
+      }
+    } catch (e) {
+      setError(`/${cmd} 失败: ${String((e as any)?.message || e)}`);
+    }
+  }, [sessionID, loadMessages, showNotice]);
+
+  // 命令 / 提及弹层: 选中并应用 (键盘 Enter /鼠标点击共用)
+  // - client-cmd: 客户端动作 (压缩/清空/复制/分享/导出/帮助)
+  // - command (有 template): 用模板填 $ARGUMENTS 发给 AI
+  // - skill (无 template): 替换输入框为 /<cmd>
+  const applyCommand = useCallback(async (c: { cmd: string; name: string; hint?: string; template?: string; subtask?: boolean; source: 'client-cmd' | 'command' | 'skill' }) => {
+    // 提取用户在 /cmd 后输入的参数 (取 /xxx 触发符后到行尾的文本)
+    const m = input.match(/(?:^|\s)\/(\S+)(?:\s+(.*))?$/);
+    const args = (m && m[2]) ? m[2].trim() : '';
+    setShowCommands(false);
+    setInput('');
+
+    // 客户端命令: 本地执行 (不依赖 server 端点)
+    if (c.source === 'client-cmd') {
+      await runClientCmd(c.cmd);
+      return;
+    }
+
+    if (c.template) {
+      // custom command: 模板替换 $ARGUMENTS 后作为消息发送
+      const promptText = c.template.replace(/\$ARGUMENTS/g, args || '(no arguments provided)');
+      try {
+        let sid = sessionID;
+        if (!sid) {
+          sid = await aiCreateSession();
+          setSessionID(sid);
+        }
+        const model = selectedModel
+          ? { providerID: selectedModel.providerID, modelID: selectedModel.id }
+          : undefined;
+        await aiSendMessage(sid, promptText, currentAgent, model);
+        setBusy(true);
+      } catch (e) {
+        setApiError(e);
+      }
+      return;
+    }
+
+    // skill: 填入输入框
+    setInput(`/${c.cmd} `);
+    setTimeout(() => taRef.current?.focus(), 0);
+  }, [input, sessionID, currentAgent, selectedModel, runClientCmd]);
+
+  const applyMention = useCallback((m: { id: string; name: string; type: string }) => {
+    const trigger = input.match(/[@#]\S*$/)?.[0]?.[0] || '@';
+    const replaced = input.replace(/[@#]\S*$/, `${trigger}${m.name} `);
+    setInput(replaced);
+    setShowMentions(false);
+    setTimeout(() => taRef.current?.focus(), 0);
+  }, [input]);
 
   const onReplyQuestion = useCallback(async (sid: string, rid: string, answers: string[][]) => {
     await aiReplyQuestion(sid, rid, answers);
@@ -605,11 +880,66 @@ export const AiPanel: React.FC = () => {
   }, [sessionID]);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // 弹层打开时: ↑↓ 导航, Enter/Tab 选中, Esc 关闭
+    if (showCommands && filteredCommands.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setCmdIndex((i) => (i + 1) % filteredCommands.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCmdIndex((i) => (i - 1 + filteredCommands.length) % filteredCommands.length);
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+        e.preventDefault();
+        applyCommand(filteredCommands[cmdIndex]);
+        return;
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && e.shiftKey)) {
+        e.preventDefault();
+        applyCommand(filteredCommands[cmdIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowCommands(false);
+        return;
+      }
+    }
+    if (showMentions && mentionList.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % mentionList.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + mentionList.length) % mentionList.length);
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+        e.preventDefault();
+        applyMention(mentionList[mentionIndex]);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        applyMention(mentionList[mentionIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowMentions(false);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       onSend();
     }
-  }, [onSend]);
+  }, [onSend, showCommands, showMentions, filteredCommands, mentionList, cmdIndex, mentionIndex, applyCommand, applyMention]);
 
   const onUploadFile = useCallback(async (files: FileList | null) => {
     if (!files || !files.length) return;
@@ -710,15 +1040,6 @@ export const AiPanel: React.FC = () => {
     return g;
   }, [filteredModels, models]);
 
-  const visibleAgents = useMemo(
-    () => agents.filter((a: any) => {
-      const id = a.id || a.name;
-      const mode = a.mode || a.data?.mode;
-      return id && !HIDDEN_AGENTS.has(id) && (mode === 'primary' || mode === 'all');
-    }),
-    [agents]
-  );
-
   const activeTodos = useMemo(() => {
     if (todos.length > 0) return todos;
     // 兜底: 官方 todo API 未返回时, 从最近 assistant 消息的 todowrite tool state 解析
@@ -726,36 +1047,6 @@ export const AiPanel: React.FC = () => {
     if (!lastAssistant) return [];
     return findCurrentTodos(lastAssistant.parts || []);
   }, [todos, rows]);
-
-  // 命令列表 (与 OpenCode 一致)
-  const commandList = useMemo(() => [
-    { cmd: 'init', name: 'guided AGENTS.md setup', hint: '' },
-    { cmd: 'review', name: 'review changes', hint: '[commit|branch|pr], defaults to uncommitted' },
-    { cmd: 'customize-opencode', name: 'Use ONLY when the user is editing or creating opencode\'s own configuration: opencode.json, ...', hint: '' },
-    { cmd: 'baoyu-url-to-markdown', name: 'Fetch any URL and convert to markdown using baoyu-fetch CLI (Chrome CDP with site-spec...', hint: '' },
-    { cmd: 'baoyu-translate', name: 'This skill should be used when the user asks to "translate", "翻 译", "精翻", "translate article", "translat...', hint: '' },
-    { cmd: 'baoyu-diagram', name: 'Create professional, dark-themed SVG diagrams of any type — architecture diagrams, flowcharts, se...', hint: '' },
-    { cmd: 'baoyu-article-illustrator', name: 'Analyzes article structure, identifies positions requiring visual aids, generates illustrations wit...', hint: '' },
-    { cmd: 'baoyu-markdown-to-html', name: 'Converts Markdown to styled HTML with WeChat-compatible themes. Supports code highli...', hint: '' },
-    { cmd: 'baoyu-format-markdown', name: 'Formats plain text or markdown files with frontmatter, titles, summaries, headings, bold, list...', hint: '' },
-    { cmd: 'baoyu-image-gen', name: 'AI image generation with OpenAI GPT Image 2, Azure OpenAI, Google, OpenRouter, DashScope, zhipu...', hint: '' },
-  ], []);
-
-  const filteredCommands = useMemo(() => {
-    const q = input.match(/(?:^|\s)\/(\S*)$/)?.[1] || '';
-    if (!q) return commandList;
-    return commandList.filter((c) => c.cmd.startsWith(q.toLowerCase()) || c.name.toLowerCase().includes(q.toLowerCase()));
-  }, [commandList, input]);
-
-  // 文件/上下文引用候选 (从工作区 + agents)
-  const mentionList = useMemo(() => {
-    const q = input.match(/(?:^|\s)[@#](\S*)$/)?.[1] || '';
-    const items: Array<{ id: string; name: string; type: 'agent' | 'file' | 'symbol'; hint?: string }> = [
-      ...visibleAgents.map((a) => ({ id: a.id || a.name, name: a.name || a.id, type: 'agent' as const, hint: AGENT_DESC[a.id || a.name] })),
-    ];
-    if (!q) return items;
-    return items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
-  }, [visibleAgents, input]);
 
   return (
     <div className="tc-ai">
@@ -803,7 +1094,7 @@ export const AiPanel: React.FC = () => {
                       setError('');
                       // 稍后重置标记, 下次新会话仍可自动加载
                       setTimeout(() => { skipAutoLoad.current = false; }, 1000);
-                    } catch (e) { setError(String((e as any)?.message || e)); }
+                    } catch (e) { setApiError(e); }
                   }}
                 >
                   清空
@@ -874,6 +1165,13 @@ export const AiPanel: React.FC = () => {
         </div>
       )}
 
+      {notice && (
+        <div className="tc-ai__notice">
+          <span className="tc-ai__notice-text">{notice}</span>
+          <button onClick={() => setNotice('')}>×</button>
+        </div>
+      )}
+
       {ready && (
         <div className="tc-ai__composer">
           {activeQuestion && (
@@ -889,18 +1187,13 @@ export const AiPanel: React.FC = () => {
           {showCommands && (
             <div className="tc-ai__cmd-pop">
               <div className="tc-ai__cmd-list">
-                {filteredCommands.map((c) => (
+                {filteredCommands.map((c, i) => (
                   <button
                     key={c.cmd}
                     type="button"
-                    className="tc-ai__cmd-item"
-                    onClick={() => {
-                      // 把触发字符替换为 /<cmd>
-                      const replaced = input.replace(/(?:^|\s)\/\S*$/, `/${c.cmd} `);
-                      setInput(replaced);
-                      setShowCommands(false);
-                      setTimeout(() => taRef.current?.focus(), 0);
-                    }}
+                    className={`tc-ai__cmd-item${i === cmdIndex ? ' active' : ''}`}
+                    onMouseEnter={() => setCmdIndex(i)}
+                    onClick={() => applyCommand(c)}
                   >
                     <span className="tc-ai__cmd-cmd">/{c.cmd}</span>
                     <span className="tc-ai__cmd-name">{c.name}</span>
@@ -920,19 +1213,15 @@ export const AiPanel: React.FC = () => {
                 {mentionList.length === 0 && (
                   <div className="tc-ai__cmd-empty">无匹配项</div>
                 )}
-                {mentionList.map((m) => {
+                {mentionList.map((m, i) => {
                   const trigger = input.match(/[@#]\S*$/)?.[0]?.[0] || '@';
                   return (
                   <button
                     key={`${m.type}-${m.id}`}
                     type="button"
-                    className="tc-ai__cmd-item"
-                    onClick={() => {
-                      const replaced = input.replace(/[@#]\S*$/, `${trigger}${m.name} `);
-                      setInput(replaced);
-                      setShowMentions(false);
-                      setTimeout(() => taRef.current?.focus(), 0);
-                    }}
+                    className={`tc-ai__cmd-item${i === mentionIndex ? ' active' : ''}`}
+                    onMouseEnter={() => setMentionIndex(i)}
+                    onClick={() => applyMention(m)}
                   >
                     <span className="tc-ai__cmd-cmd">{trigger}{m.name}</span>
                     <span className="tc-ai__cmd-name">{m.hint || m.type}</span>
@@ -1492,6 +1781,25 @@ const styles = `
   padding: 3px 10px; border-radius: 5px; cursor: pointer; font-size: 11px;
 }
 
+/* 信息/成功提示 (非错误) — 蓝色调, 与红色错误区分 */
+.tc-ai__notice {
+  margin: 0 12px 8px;
+  padding: 8px 12px;
+  background: var(--ai-accent-soft);
+  border: 1px solid var(--ai-border);
+  border-radius: 8px;
+  color: var(--ai-fg); font-size: 12px;
+  display: flex; align-items: center; gap: 10px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.tc-ai__notice-text { flex: 1; min-width: 0; }
+.tc-ai__notice button {
+  flex-shrink: 0;
+  background: transparent; border: none; color: var(--ai-fg-muted);
+  cursor: pointer; font-size: 13px; line-height: 1; padding: 2px 4px;
+}
+.tc-ai__notice button:hover { color: var(--ai-fg); }
+
 /* Composer */
 .tc-ai__composer {
   padding: 8px 12px 12px;
@@ -1854,6 +2162,48 @@ const styles = `
 .tc-ai__modal-btn-continue:hover:not(:disabled) { filter: brightness(1.12); }
 .tc-ai__modal-btn-continue:disabled { opacity: 0.5; cursor: not-allowed; }
 
+
+/* ========== 命令 / 提及 弹层 (输入框上方, 与 agent-pop 风格统一) ========== */
+.tc-ai__cmd-pop {
+  position: absolute; bottom: calc(100% + 6px); left: 12px; right: 12px;
+  max-height: 280px; overflow-y: auto;
+  background: var(--ai-bg-elev);
+  border: 1px solid var(--ai-border);
+  border-radius: 12px;
+  box-shadow: var(--ai-shadow);
+  padding: 4px;
+  z-index: 70;
+}
+.tc-ai__cmd-list { display: flex; flex-direction: column; gap: 1px; }
+.tc-ai__cmd-item {
+  display: flex; align-items: baseline; gap: 10px;
+  width: 100%; padding: 6px 10px;
+  background: transparent; border: none; border-radius: 6px;
+  color: var(--ai-fg); font-family: inherit; text-align: left;
+  cursor: pointer;
+}
+.tc-ai__cmd-item:hover { background: var(--ai-hover); }
+.tc-ai__cmd-item.active { background: var(--ai-active); }
+.tc-ai__cmd-cmd {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; font-weight: 600;
+  color: var(--ai-fg);
+}
+.tc-ai__cmd-name {
+  flex: 1; min-width: 0;
+  font-size: 12px; color: var(--ai-fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tc-ai__cmd-hint {
+  flex-shrink: 0; max-width: 40%;
+  font-size: 10.5px; color: var(--ai-fg-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tc-ai__cmd-empty {
+  padding: 18px 12px; text-align: center;
+  color: var(--ai-fg-muted); font-size: 12px;
+}
 
 /* ========== Agent 选择下拉 (与 ModelPicker 风格统一) ========== */
 .tc-ai__agent-pop {

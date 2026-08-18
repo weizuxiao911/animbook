@@ -156,6 +156,62 @@ export async function aiListAgents(): Promise<any[]> {
     }));
 }
 
+/** 已加载的 skill 列表 — 直连 /skill (含内置 + 项目 .opencode/skills + 全局 ~/.config/opencode/skills)
+ *  按 name / description 给出，供 / 命令弹层动态展示与过滤 */
+export interface SkillInfo {
+  name: string;
+  description?: string;
+  location?: string;
+}
+
+export async function aiListSkills(): Promise<SkillInfo[]> {
+  await waitForAiReady();
+  const dir = typeof window !== 'undefined' && window.location?.pathname
+    ? window.location.pathname
+    : '.';
+  const url = `/ai/skill?directory=${encodeURIComponent(dir)}`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error(`GET /skill failed: HTTP ${res.status}`);
+  const list: any[] = await res.json();
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((s) => s && s.name)
+    .map((s) => ({
+      name: String(s.name),
+      description: s.description ? String(s.description) : '',
+      location: s.location ? String(s.location) : '',
+    }));
+}
+
+/** 服务端 custom 命令列表 — 直连 /command (内置 init/review 等; project-local .opencode/command/ 下也可放)
+ *  与 /skill 一起作为 / 命令弹层的两个来源, 按 name 去重 */
+export interface CommandInfo {
+  name: string;
+  description?: string;
+  source?: string;
+}
+
+export async function aiListCommands(): Promise<CommandInfo[]> {
+  await waitForAiReady();
+  const dir = typeof window !== 'undefined' && window.location?.pathname
+    ? window.location.pathname
+    : '.';
+  const url = `/ai/command?directory=${encodeURIComponent(dir)}`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error(`GET /command failed: HTTP ${res.status}`);
+  const list: any[] = await res.json();
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((c) => c && c.name)
+    .map((c) => ({
+      name: String(c.name),
+      description: c.description ? String(c.description) : '',
+      source: c.source ? String(c.source) : 'command',
+      template: typeof c.template === 'string' ? c.template : undefined,
+      subtask: c.subtask === true,
+    }));
+}
+
 /** 切换会话 agent — v2.session.switchAgent({ sessionID, agent }) */
 export async function aiSwitchAgent(sessionID: string, agent: string): Promise<void> {
   await waitForAiReady();
@@ -171,6 +227,51 @@ export async function aiGetTodos(sessionID: string): Promise<any[]> {
   const { data, error } = await (client as any).v2.session.todo({ sessionID });
   if (error) throw error;
   return Array.isArray(data) ? data : [];
+}
+
+/** 压缩会话上下文 — v2.session.compact({ sessionID })
+ *  AI 摘要历史消息, 保留关键信息, 减少后续上下文 token 占用 */
+export async function aiCompactSession(sessionID: string): Promise<void> {
+  await waitForAiReady();
+  const client = getAiClient()!;
+  const { error } = await (client as any).v2.session.compact({ sessionID });
+  if (error) throw error;
+}
+
+/** 分享会话 — 生成可分享链接 (官方 TUI 同款) */
+export async function aiShareSession(sessionID: string): Promise<string> {
+  await waitForAiReady();
+  const client = getAiClient()!;
+  const { data, error } = await (client as any).v2.session.share({ sessionID });
+  if (error) throw error;
+  return data?.shareUrl ?? data?.url ?? data?.id ?? '';
+}
+
+/** 取消会话分享 */
+export async function aiUnshareSession(sessionID: string): Promise<void> {
+  await waitForAiReady();
+  const client = getAiClient()!;
+  const { error } = await (client as any).v2.session.unshare({ sessionID });
+  if (error) throw error;
+}
+
+/** 删除会话内全部消息 — v2.session.deleteAllMessages? 检查可用性, 暂走 message.delete 逐条
+ *  注: 当前 SDK 不一定有单次 deleteAll API; 这里走 v1 message.delete 循环 (降级路径) */
+export async function aiClearMessages(sessionID: string): Promise<number> {
+  await waitForAiReady();
+  const client = getAiClient()!;
+  const msgs = await aiListMessages(sessionID);
+  let deleted = 0;
+  for (const m of msgs) {
+    const mid = m?.info?.id || m?.id;
+    if (!mid) continue;
+    try {
+      const { error } = await (client as any).v2.session.deleteMessage?.({ sessionID, messageID: mid })
+        ?? await (client as any).session.deleteMessage({ sessionID, messageID: mid });
+      if (!error) deleted++;
+    } catch { /* 忽略单条失败 */ }
+  }
+  return deleted;
 }
 
 /** 回答 A2UI question — client.question.reply({ requestID, answers }) (v1 路径) */

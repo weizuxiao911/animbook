@@ -33,7 +33,7 @@ export function buildSlots(workspaceDir: string): Slots {
       },
       [SlotLocation.right]: {
         modules: [
-          'ai-panel-default'
+          'chat-panel'
         ]
       },
       [SlotLocation.main]: {

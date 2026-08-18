@@ -295,11 +295,11 @@ body.vs,
   background-image: none !important;
 }
 
-/* 右栏 (AI 面板) 取消最小宽度限制 — 允许拖拽到任意窄 */
+/* 右栏 (Chat 面板) 取消最小宽度限制 — 允许拖拽到任意窄 */
 [class*="right_slot___"],
 [class*="design_right_slot"],
-#ai-panel-default,
-[id^="ai-panel-default"] {
+#chat-panel,
+[id^="chat-panel"] {
   min-width: 0 !important;
 }
 
@@ -406,9 +406,9 @@ body.vs,
 .tc-right-panel .kt-tab-panel,
 .tc-right-panel [class*="view_container___"],
 .tc-right-panel [class*="panel_wrap___"],
-/* split-panel 内层容器 (sessions-default / ai-panel-default / explorer) 跟 left slot 同色 */
+/* split-panel 内层容器 (sessions-default / chat-panel / explorer) 跟 left slot 同色 */
 #sessions-default,
-#ai-panel-default,
+#chat-panel,
 .tc-ai {
   background: var(--tc-surface-muted) !important;
 }

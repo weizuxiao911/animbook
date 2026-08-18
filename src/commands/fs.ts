@@ -17,7 +17,7 @@
  * IDE 侧路径都是相对于 workspaceDir 的, 映射到宿主机绝对路径后再交给 opencode.
  *
  * 暴露两种用法:
- *   1) window.__ANIMBOOK_FS_API__  — 便捷对象 (供非 OpenSumi 模块, 如 AiPanel)
+ *   1) window.__ANIMBOOK_FS_API__  — 便捷对象 (供非 OpenSumi 模块, 如 Chat)
  *   2) FsCommandsModule            — OpenSumi CommandContribution (animbook.fs.* 命令)
  */
 

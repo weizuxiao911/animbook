@@ -7,7 +7,7 @@ import '@codeblitzjs/ide-core/languages';
 import { getDefaultAppConfig } from '@codeblitzjs/ide-core';
 
 import { buildSlots } from './config/slots';
-import { AssistantModule } from './extensions/assistant';
+import { ChatModule } from './extensions/chat';
 import { ActionsModule } from './extensions/actions';
 import { SessionsModule } from './extensions/sessions';
 import { WelcomeModule } from './extensions/welcome';
@@ -95,7 +95,7 @@ export const App: React.FC = () => {
           PdfReaderModule,
           BinaryModule,
           HtmlModule,
-          AssistantModule,
+          ChatModule,
           ActionsModule,
           SessionsModule,
         ],

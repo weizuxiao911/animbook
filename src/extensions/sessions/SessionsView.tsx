@@ -8,7 +8,7 @@ import {
   aiDeleteSession,
   aiListSessions,
   isAiReady,
-} from '../assistant/commands/api';
+} from '../chat/commands/api';
 
 /**
  * SessionsView — animbook 入口面板 (左侧第一个活动栏图标)
@@ -23,7 +23,7 @@ import {
  *   - 底部: opencode 连接状态 + 工作空间目录
  *
  * 事件/驱动:
- *   - 新建/选择: aiCreateSession() → 派发 animbook:ai-select-session → AiPanel 监听并切换
+ *   - 新建/选择: aiCreateSession() → 派发 animbook:ai-select-session → Chat 监听并切换
  *   - AI/终端/文件: IMainLayoutService.toggleSlot + updateCurrentContainerId
  *
  * 数据源: opencode SDK (单一真实来源), 不维护本地副本.
@@ -94,7 +94,7 @@ export const SessionsView: React.FC<SessionsViewProps> = (props) => {
   }, [layoutService]);
 
   const selectSession = useCallback((sessionID: string) => {
-    showRight('ai-panel-default');
+    showRight('chat-panel');
     window.dispatchEvent(
       new CustomEvent('animbook:ai-select-session', { detail: { sessionID } }),
     );

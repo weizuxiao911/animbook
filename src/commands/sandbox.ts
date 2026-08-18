@@ -3,7 +3,7 @@
  *
  * animbook 单一全局入口: baseUrl 走相对路径 `/ai`, dev 由 webpack-dev-server
  * 代理 `/ai/*` 到 127.0.0.1:4096, 生产由部署方自行配置反向代理.
- * 启动期同步创建 + 挂 window 全局, 供 AI 面板 (extensions/assistant/) 全部命令走 SDK.
+ * 启动期同步创建 + 挂 window 全局, 供 Chat 面板 (extensions/chat/) 全部命令走 SDK.
  *
  * 不再依赖 sandbox runtime / gateway / agent-image. 由用户提供一个运行中的
  * opencode 实例 (默认 127.0.0.1:4096) 即可使用.

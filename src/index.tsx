@@ -15,7 +15,7 @@ if (!container) {
 // 启动期同步创建 OpenCode SDK 客户端 (baseUrl = '/ai', dev 由 webpack-dev-server
 // 代理到 127.0.0.1:4096). 必须早于 App 渲染.
 installOpencodeClient();
-// 挂 window.__ANIMBOOK_FS_API__ (AiPanel 等非 OpenSumi 模块使用).
+// 挂 window.__ANIMBOOK_FS_API__ (Chat 等非 OpenSumi 模块使用).
 // 工作区目录在首次 API 调用时按需 fetch /ai/path.
 installFsApi();
 // OpenSumi 对未知扩展会弹 "异常行终止符" confirm, 我们想自己接管 PDF 打开,
