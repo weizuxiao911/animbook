@@ -47,7 +47,8 @@ export const WelcomeView: React.FC<{ resource?: any }> = () => {
     if (results.length) {
       // 尝试打开第一个文件
       try {
-        const uri = `file://${workspaceDir.replace(/\/$/, '')}/${results[0]}`;
+        const ws = workspaceDir.replace(/\\/g, '/').replace(/\/+$/, '');
+        const uri = `file://${ws}/${results[0]}`;
         await commandService.tryExecuteCommand('core.open', uri);
       } catch { /* ignore */ }
     }

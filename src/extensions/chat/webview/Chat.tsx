@@ -679,7 +679,7 @@ export const Chat: React.FC = () => {
     for (const c of CLIENT_COMMANDS) {
       if (seen.has(c.cmd)) continue;
       seen.add(c.cmd);
-      list.push({ cmd: c.cmd, name: c.desc, hint: c.hint, source: 'client-cmd' });
+      list.push({ cmd: c.cmd, name: c.desc, hint: c.hint || '', source: 'client-cmd' });
     }
     // server 命令 (init/review 等)
     for (const c of commands) {

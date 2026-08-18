@@ -9,12 +9,18 @@ export type Slots = Pick<
 >;
 
 /**
- * 构建 slots — workspaceDir 由调用方 (App) 从 sandbox/fs.getWorkspaceDir() 拿到后注入.
- * 不再硬编码 '/workspace'.
+ * 构建 slots.
+ *
+ * 注意: appConfig.workspaceDir 是 CodeBlitz/OpenSumi 的 **IDE 内虚拟工作区路径**,
+ * 用作 BrowserFS 挂载点 (rootFS.mount(workspaceDir, overlayFS)) 与 file URI 前缀,
+ * 必须是 POSIX 风格虚拟路径 (如 '/workspace'), **不能**传宿主机绝对路径
+ * (Windows 盘符 D:\... 含 ':' 和 '\' 会破坏挂载点与 URI 解析, 导致 explorer 无法渲染).
+ * 宿主机真实目录由 sandbox/fs.getWorkspaceDir() (GET /ai/path) 单独维护, 用于
+ * 把 IDE 相对路径映射到 opencode 宿主机路径.
  */
-export function buildSlots(workspaceDir: string): Slots {
+export function buildSlots(): Slots {
   return {
-    workspaceDir,
+    workspaceDir: '/workspace',
     layoutComponent: LayoutComponent,
     layoutConfig: {
       [SlotLocation.top]: {

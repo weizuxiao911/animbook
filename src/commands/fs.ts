@@ -28,15 +28,20 @@ import { IFileServiceClient } from '@opensumi/ide-file-service';
 import { WORKSPACE_ROOT } from '@codeblitzjs/ide-core';
 
 import { getOpencodeClient } from './sandbox';
-import { isWindows, shellQuote, joinHostPath, basename, dirname } from './platform';
+import { isWindows, shellQuote, joinHostPath, basename, dirname, trimTrailingSep } from './platform';
 
-/** 沙箱文件类型: 0 未知 / 1 文件 / 2 目录 (BrowserFS FileType) */
-export const FILE_TYPE_FILE = 1;
-export const FILE_TYPE_DIR = 2;
+/**
+ * 沙箱文件类型常量 — 必须与 BrowserFS NodeFSStats.FileType 位掩码一致
+ * (DynamicRequest.js 用 `fileType === FileType.DIRECTORY` 判断):
+ *   FILE=32768 (0o100000), DIRECTORY=16384 (0o040000), SYMLINK=40960.
+ * 之前误用 1/2 导致目录全被当成 FileInode, explorer 里目录显示成文件且不可展开.
+ */
+export const FILE_TYPE_FILE = 32768;
+export const FILE_TYPE_DIR = 16384;
 
 export interface FsEntry {
   name: string;
-  type: 0 | 1 | 2;
+  type: 0 | 16384 | 32768;
 }
 
 const SHELL_TIMEOUT_MS = 30000;
@@ -61,7 +66,7 @@ export async function getWorkspaceDir(): Promise<string> {
     if (!dir || typeof dir !== 'string') {
       throw new Error('GET /ai/path 未返回 directory 字段');
     }
-    _workspaceDir = dir.replace(/\/+$/, '');
+    _workspaceDir = trimTrailingSep(dir);
     return _workspaceDir;
   })();
   try {
@@ -223,9 +228,9 @@ export async function fsList(idePath: string): Promise<FsEntry[]> {
     const entries: any[] = Array.isArray(data) ? data : (data?.data || []);
     return entries
       .map((e) => {
-        const fullPath: string = e?.path || e?.name || '';
+        const fullPath: string = (e?.path || e?.name || '').replace(/[\\/]+$/, '');
         const name = basename(fullPath);
-        const type: 0 | 1 | 2 = e?.type === 'directory' ? FILE_TYPE_DIR : FILE_TYPE_FILE;
+        const type: FsEntry['type'] = e?.type === 'directory' ? FILE_TYPE_DIR : FILE_TYPE_FILE;
         return { name, type } as FsEntry;
       })
       .filter((e) => e.name && e.name !== '.' && e.name !== '..');
@@ -259,7 +264,7 @@ export async function fsReadBinaryAbsolute(
 ): Promise<Uint8Array> {
   const dir = dirname(hostPath);
   const name = basename(hostPath);
-  const url = `/ai/api/fs/read/${encodeURIComponent(name)}?directory=${encodeURIComponent(dir)}`;
+  const url = `/ai/api/fs/read/${encodeURIComponent(name)}?location%5Bdirectory%5D=${encodeURIComponent(dir)}`;
   const res = await fetch(url, { signal: opts.signal });
   if (!res.ok) throw new Error(`fs.read HTTP ${res.status}: ${res.statusText}`);
   const total = Number(res.headers.get('content-length') || 0);

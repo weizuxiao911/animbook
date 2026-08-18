@@ -19,6 +19,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 
 import { toAnnotMeta, runAnnotAction, type PdfAnnotMeta, type AnnotHandlers } from './annotations';
 import { AnnotationActions } from './AnnotationActions';
+import { normalizeSep } from '../../commands/platform';
 
 const PDF_WORKER_CACHE_KEY = '__ANIMBOOK_PDF_WORKER_URL__';
 function setupPdfWorker() {
@@ -75,13 +76,21 @@ function resolveHostPath(resource: any): string {
   }
   const root = (window as any).__ANIMBOOK_FS_API__?.getWorkspaceDirSync?.();
   if (root) {
-    const rootName = String(root).split('/').pop();
-    if (rootName && p.startsWith(`/${rootName}/`)) {
-      p = p.slice(rootName.length + 1);          // 虚拟路径: 剥根目录名
-    } else if (p.startsWith(`${root}/`)) {
-      p = p.slice(root.length + 1);              // 绝对路径: 剥根目录
-    } else if (p === root) {
-      p = '';
+    // 统一成正斜杠做前缀比较, 兼容 Windows 反斜杠路径
+    const pNorm = normalizeSep(p, '/').replace(/^\/+/, '/');
+    const rootNorm = normalizeSep(root, '/').replace(/\/+$/, '');
+    const rootName = rootNorm.split('/').pop() || '';
+    if (rootName && pNorm === `/${rootName}`) {
+      return '';
+    }
+    if (rootName && pNorm.startsWith(`/${rootName}/`)) {
+      return pNorm.slice(rootName.length + 2);          // 虚拟路径: 剥 "/{rootName}/"
+    }
+    if (pNorm === rootNorm) {
+      return '';
+    }
+    if (pNorm.startsWith(rootNorm + '/')) {
+      return pNorm.slice(rootNorm.length + 1);          // 宿主机绝对路径: 剥根
     }
   }
   return p;

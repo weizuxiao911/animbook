@@ -77,7 +77,7 @@ export const App: React.FC = () => {
     );
   }
 
-  const slots = buildSlots(workspaceDir);
+  const slots = buildSlots();
   const defaultModules = getDefaultAppConfig().modules || [];
 
   return (

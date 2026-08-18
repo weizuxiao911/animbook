@@ -109,3 +109,18 @@ export function dirname(p: string): string {
   const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
   return idx > 0 ? p.slice(0, idx) : (isWindows() ? p.slice(0, idx) : '/');
 }
+
+/** 去除末尾所有 / 与 \，平台无关 */
+export function trimTrailingSep(p: string): string {
+  return p.replace(/[\\/]+$/, '');
+}
+
+/**
+ * 把路径中的 / 与 \ 统一为目标分隔符.
+ * target 缺省：Windows → \，其余 → /.
+ * 不解析 . / ..，只做字符替换.
+ */
+export function normalizeSep(p: string, target?: '/' | '\\'): string {
+  const sep = target ?? (isWindows() ? '\\' : '/');
+  return p.replace(/[\\/]+/g, sep);
+}

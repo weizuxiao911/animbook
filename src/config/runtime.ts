@@ -1,6 +1,6 @@
 import { WORKSPACE_ROOT, type IAppRendererProps } from '@codeblitzjs/ide-core';
 
-import { fsList, fsRead, fsWrite, fsDelete, fsMkdir, getWorkspaceDirSync, FILE_TYPE_FILE, FILE_TYPE_DIR } from '../commands/fs';
+import { fsList, fsRead, fsWrite, fsDelete, fsMkdir, FILE_TYPE_FILE, FILE_TYPE_DIR } from '../commands/fs';
 
 /**
  * 运行时配置 — CodeBlitz runtimeConfig
@@ -51,12 +51,12 @@ function syncToSandbox(op: 'write' | 'delete', filepath: string, content?: strin
 }
 
 /**
- * 相对路径 → OpenSumi file URI (file:///workspace{directory}/xxx)
- * WORKSPACE_ROOT 是 CodeBlitz 框架常量, directory 来自 /ai/path (动态).
+ * IDE 相对路径 → OpenSumi file URI (file:///workspace/xxx)
+ * appConfig.workspaceDir 固定为虚拟路径 '/workspace'; 宿主机目录由 fs 层映射.
  */
 function relToUri(filepath: string): string {
-  const dir = getWorkspaceDirSync() || '';
-  return `file://${WORKSPACE_ROOT}${dir}/${filepath}`;
+  const file = String(filepath || '').replace(/^\/+/, '');
+  return `${WORKSPACE_ROOT}/${file}`;
 }
 
 /** 查询浏览器侧 (IndexedDB/OverlayFS) 该路径是否为目录 */
