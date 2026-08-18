@@ -57,10 +57,12 @@ interface Props {
 /**
  * 解析 OpenSumi 虚拟路径 → workspace 内相对路径.
  *
- * OpenSumi 可能给两种形态:
- *   - 虚拟 FS: "/{workspace根目录名}/机器学习2.pdf"
- *   - 绝对路径: "/Users/.../workspace/机器学习2.pdf"
- * 前缀 = 工作区根目录 (来自 opencode /ai/path 的 directory 字段), 不硬编码.
+ * OpenSumi 给的 URI 在 hotfix/init-support-windows 之后形态固定:
+ *   fsPath = "/workspace/{workspaceDir 末段}/{相对路径}"
+ * 例: workspaceDir = "/Users/.../animbook/workspace",
+ *     fsPath = "/workspace/workspace/机器学习2.pdf"
+ *
+ * 剥两层: 框架 WORKSPACE_ROOT 前缀 "/workspace" + workspaceDir 末段 "workspace",
  * 归一为相对路径后, fsRead/fsWrite 内部 toHostPath 拼回绝对路径.
  */
 function resolveHostPath(resource: any): string {
@@ -74,26 +76,30 @@ function resolveHostPath(resource: any): string {
     if (s.startsWith('file://')) p = decodeURIComponent(s.slice('file://'.length));
     else p = s;
   }
+  if (!p) return '';
+  const pNorm = normalizeSep(p, '/');
   const root = (window as any).__ANIMBOOK_FS_API__?.getWorkspaceDirSync?.();
   if (root) {
-    // 统一成正斜杠做前缀比较, 兼容 Windows 反斜杠路径
-    const pNorm = normalizeSep(p, '/').replace(/^\/+/, '/');
     const rootNorm = normalizeSep(root, '/').replace(/\/+$/, '');
     const rootName = rootNorm.split('/').pop() || '';
-    if (rootName && pNorm === `/${rootName}`) {
-      return '';
+    // 1. 剥框架 WORKSPACE_ROOT 前缀 '/workspace'
+    let stripped = pNorm;
+    if (stripped === '/workspace') return '';
+    if (stripped.startsWith('/workspace/')) {
+      stripped = stripped.slice('/workspace'.length + 1);
     }
-    if (rootName && pNorm.startsWith(`/${rootName}/`)) {
-      return pNorm.slice(rootName.length + 2);          // 虚拟路径: 剥 "/{rootName}/"
+    // 2. 剥 workspaceDir 末段 (OpenSumi URI 把它当虚拟子目录)
+    if (rootName && stripped === rootName) return '';
+    if (rootName && stripped.startsWith(rootName + '/')) {
+      return stripped.slice(rootName.length + 1);
     }
-    if (pNorm === rootNorm) {
-      return '';
-    }
-    if (pNorm.startsWith(rootNorm + '/')) {
-      return pNorm.slice(rootNorm.length + 1);          // 宿主机绝对路径: 剥根
+    // 3. 剥完整 workspaceDir 绝对路径 (兼容老形态)
+    if (stripped === rootNorm) return '';
+    if (rootNorm && stripped.startsWith(rootNorm + '/')) {
+      return stripped.slice(rootNorm.length + 1);
     }
   }
-  return p;
+  return pNorm.replace(/^\/+/, '');
 }
 
 async function openPdfFromBytes(bytes: Uint8Array): Promise<any> {

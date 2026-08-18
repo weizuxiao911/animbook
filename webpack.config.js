@@ -183,7 +183,7 @@ module.exports = () => ({
   devServer: {
     allowedHosts: 'all',
     host: '0.0.0.0',
-    port: 8090,
+    port: 8091,
     historyApiFallback: { disableDotRule: true },
     hot: true,
     client: {
