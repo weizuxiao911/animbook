@@ -15,7 +15,7 @@
 ## 技术栈
 
 - **交互层**: opensumi (codeblitz) 作为容器，纯前端应用
-  - 内置**系统级 opensumi 拓展** (`opensumi/src/extensions/`)
+  - 内置**系统级 opensumi 拓展** (`webapp/src/extensions/`)
   - 兼容 **vsix 标准的业务拓展** (`registry/extensions/<name>/`，独立 npm 包 → `.vsix`)
 - **拓展分发**: `registry` 后台服务提供支撑
 - **AI 服务**: `opencode` 提供支撑
@@ -29,7 +29,7 @@
 3. **codeblitz**: webpack devServer → `:8090`
 
 启动后：
-1. codeblitz 内置拓展立即生效 (`opensumi/src/extensions/*` 在 bundle 内)
+1. codeblitz 内置拓展立即生效 (`webapp/src/extensions/*` 在 bundle 内)
 2. codeblitz 全局服务同时连接 registry (拉拓展清单 + vsix) 与 opencode (AI/FS/PTY)
 3. vsix 拓展启动后通过 `/extensions/<name>/...` 从 registry 拉源码 + 资源
 
@@ -41,7 +41,7 @@ animbook/
 ├── README.md
 ├── AGENTS.md
 │
-├── opensumi/                 # 基于 codeblitz 的工作台 (纯 web 前端)
+├── webapp/                    # 基于 codeblitz 的工作台 (纯 web 前端)
 │   ├── src/                  # 工作台源代码 (含内置拓展)
 │   ├── webpack.config.js
 │   ├── tsconfig.json
@@ -72,7 +72,7 @@ dev 由 webpack devServer 反代；生产由部署方 nginx/caddy 同样承接�
 
 | 类型 | 位置 | 形态 | 适用 |
 |---|---|---|---|
-| 内置系统级 | `opensumi/src/extensions/<name>/` | 与 codeblitz 同 bundle | PDF 阅读器 / 欢迎页 / 布局切换 |
+| 内置系统级 | `webapp/src/extensions/<name>/` | 与 codeblitz 同 bundle | PDF 阅读器 / 欢迎页 / 布局切换 |
 | 业务 vsix | `registry/extensions/<name>/` | 独立 npm 包 → `.vsix` | 第三方 AI 面板 / 领域工具 / 业务流 |
 
 业务 vsix 通过 `extension.ts` + `views.tsx` 标准入口暴露，`fetch('/api/*')` 走 opencode，`fetch('/extensions/<name>/...')` 走 registry。

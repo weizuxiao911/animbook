@@ -1,0 +1,44 @@
+{
+  "name": "chat",
+  "displayName": "Chat",
+  "version": "0.1.0",
+  "publisher": "webapp-test",
+  "private": true,
+  "description": "chat vsix — OpenSumi sumi 扩展: 右侧 AI 面板",
+  "main": "out/extension.js",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "*"
+  ],
+  "sumiContributes": {
+    "browserMain": "./out/extension.js",
+    "browserViews": {
+      "right": {
+        "type": "add",
+        "view": [
+          {
+            "id": "chat-panel",
+            "title": "Chat"
+          }
+        ]
+      }
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "package": "node package-vsix.mjs",
+    "publish": "node package-vsix.mjs"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.4"
+  }
+}

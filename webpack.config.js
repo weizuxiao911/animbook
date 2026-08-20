@@ -5,7 +5,7 @@ const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
 const Dotenv = require('dotenv-webpack');
 
 module.exports = () => ({
-  entry: path.resolve(__dirname, 'opensumi/src/index.tsx'),
+  entry: path.resolve(__dirname, 'webapp/src/index.tsx'),
   output: {
     filename: '[name].[contenthash].js',
     path: path.resolve(__dirname, 'dist'),
@@ -72,8 +72,8 @@ module.exports = () => ({
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.json'],
     alias: {
-      '@': path.resolve(__dirname, 'opensumi/src'),
-      '@/': path.resolve(__dirname, 'opensumi/src') + path.sep,
+      '@': path.resolve(__dirname, 'webapp/src'),
+      '@/': path.resolve(__dirname, 'webapp/src') + path.sep,
     },
     fallback: {
       path: require.resolve('path-browserify'),
@@ -177,7 +177,7 @@ module.exports = () => ({
   },
   plugins: [
     new HtmlWebpackPlugin({
-      template: path.resolve(__dirname, 'opensumi/src/index.html'),
+      template: path.resolve(__dirname, 'webapp/src/index.html'),
     }),
     new Dotenv({
       path: path.resolve(__dirname, `.env.${process.env.DEPLOY_ENV || 'development'}`),

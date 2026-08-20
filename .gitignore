@@ -6,6 +6,9 @@ dist/
 out/
 *.vsix
 
+# registry 自签证书 (含私钥, 不入库; 需要时本地 openssl 重新生成)
+registry/certs/
+
 # 环境配置 (仅 .env.example 提交到 git, 其它 gitignore)
 .env
 .env.local

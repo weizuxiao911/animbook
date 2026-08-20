@@ -17,6 +17,7 @@
     "@codeblitzjs/ide-core": "2.4.6",
     "@opencode-ai/sdk": "^1.18.11",
     "@opensumi/ide-terminal-next": "3.6.5-next-1766394426.0",
+    "chat": "file:./registry/extensions/chat",
     "marked": "^7.0.5",
     "marked-shiki": "^1.2.1",
     "pdf-lib": "^1.17.1",
