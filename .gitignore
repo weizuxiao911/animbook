@@ -25,6 +25,7 @@ registry/certs/
 # 临时
 .cache/
 *.log
+.logs/
 
 # 编辑器/系统
 .DS_Store

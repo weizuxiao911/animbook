@@ -7,35 +7,36 @@ import {
   aiListAgents,
   aiListSkills,
   aiListCommands,
+  aiListSessions,
   aiSwitchAgent,
-  aiGetTodos,
   aiCompactSession,
   aiShareSession,
   aiUnshareSession,
   aiClearMessages,
   aiReplyQuestion,
   aiRejectQuestion,
+  aiReplyPermission,
   aiListModels,
   aiListProviders,
   getAiClient,
 } from '@/extensions/chat/commands/api';
 import { modelPrefs } from '@/extensions/chat/commands/modelPrefs';
 import { PartRenderer } from './parts/PartRenderer';
-import { type TodoItem } from './parts/TodoCard';
+import { PermissionModal } from './parts/PermissionModal';
 import { ModelPicker } from './parts/ModelPicker';
 import { QuestionModal } from './parts/QuestionModal';
 
 import {
   Row, HIDDEN_AGENTS, AGENT_ICONS, AGENT_DESC, CLIENT_COMMANDS,
-  findCurrentTodos, extractText, formatDuration,
-  getQuestionStore, subscribeQuestionChange,
+  extractText, formatDuration,
+  getQuestionStore, subscribeQuestionChange, setQuestion,
 } from './helpers';
-import { CHAT_BRAND } from '../brand';
+import { getBrand } from '../brand';
 import { styles } from './styles';
-import { TodosDock } from './components/TodosDock';
 import { LoginGate } from './components/LoginGate';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { MessageRow } from './components/MessageRow';
+import { SessionsModal } from './components/SessionsModal';
 
 function loadClientCmds() {
   return CLIENT_COMMANDS.map((c) => ({ cmd: c.cmd, name: c.desc, hint: c.hint || '', source: 'client-cmd' as const }));
@@ -94,6 +95,7 @@ export const Chat: React.FC = () => {
   const [commands, setCommands] = useState<Array<{ name: string; description?: string; source?: string; template?: string; subtask?: boolean }>>([]);
   const [, setQuestionRev] = useState(0);
   const [activeQuestion, setActiveQuestion] = useState<{ requestID: string; questions: any[] } | null>(null);
+  const [pendingPermission, setPendingPermission] = useState<any>(null);
   useEffect(() => {
     const sub = () => setQuestionRev((n) => n + 1);
     const unsub = subscribeQuestionChange(sub);
@@ -131,14 +133,14 @@ export const Chat: React.FC = () => {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const modelSearchRef = useRef<HTMLInputElement>(null);
 
-  // chat 只需要 opencode 实例 — 取全局 __WEBAPP_OPENCODE__, 不依赖 sandbox/fs/login.
+  // chat 只需要 opencode 实例 — 取全局 __APP_OPENCODE__, 不依赖 sandbox/fs/login.
   // 未创建时同步 ensure 一个 (getAiClient 内部 getOpencodeClient 会挂全局).
-  const client = (window as any).__WEBAPP_OPENCODE__;
+  const client = (window as any).__APP_OPENCODE__;
   const isReady = () => {
     if (!client) {
       try { getAiClient(); } catch { /* 暂不可用, 交给轮询 */ }
     }
-    return !!(window as any).__WEBAPP_OPENCODE__;
+    return !!(window as any).__APP_OPENCODE__;
   };
   useEffect(() => {
     const check = () => setReady(isReady());
@@ -146,6 +148,29 @@ export const Chat: React.FC = () => {
     const id = window.setInterval(check, 1500);
     return () => window.clearInterval(id);
   }, []);
+
+  // 草稿会话: 打开面板且无 sessionID 时自动建一个; 若一直没发消息, 切换/删除/卸载时清理, 避免空会话污染历史
+  const draftRef = useRef<{ sid: string; used: boolean } | null>(null);
+  const ensureDraft = useCallback(async () => {
+    if (!client || sessionIDRef.current || draftRef.current) return;
+    try {
+      const res = await client.session.create({});
+      const sid = res?.data?.id;
+      if (sid) {
+        draftRef.current = { sid, used: false };
+        setSessionID(sid);
+      }
+    } catch { /* 忽略, 交给用户手动新建 */ }
+  }, [client]);
+  const cleanupDraft = useCallback(() => {
+    const d = draftRef.current;
+    draftRef.current = null;
+    if (!d || d.used) return;
+    (client?.session.delete({ sessionID: d.sid }) as any)?.catch?.(() => {});
+  }, [client]);
+  useEffect(() => {
+    return () => { cleanupDraft(); };
+  }, [cleanupDraft]);
 
   // --- 配置加载 (agents/models/providers/skills/commands) ---
   const loadConfig = useCallback(async () => {
@@ -207,11 +232,11 @@ export const Chat: React.FC = () => {
     const wrap = async () => { if (!cancelled) await loadConfig(); };
     void wrap();
     const onSandboxReady = () => { if (timer) clearTimeout(timer); void wrap(); };
-    window.addEventListener('webapp:sandbox-ready', onSandboxReady);
+    window.addEventListener('chat:sandbox-ready', onSandboxReady);
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
-      window.removeEventListener('webapp:sandbox-ready', onSandboxReady);
+      window.removeEventListener('chat:sandbox-ready', onSandboxReady);
     };
   }, [ready, loggedIn, loadConfig]);
   useEffect(() => {
@@ -220,18 +245,19 @@ export const Chat: React.FC = () => {
     const onSelectSession = (e: Event) => {
       const id = (e as CustomEvent<{ sessionID?: string }>).detail?.sessionID;
       if (typeof id === 'string' && id) {
+        if (draftRef.current?.sid !== id) cleanupDraft();
         setSessionID(id);
         setSessions((prev) => prev.slice());
         setTimeout(() => taRef.current?.focus(), 120);
       }
     };
-    window.addEventListener('webapp:ai-reveal', onReveal);
-    window.addEventListener('webapp:ai-modelPrefs-changed', onPrefs);
-    window.addEventListener('webapp:ai-select-session', onSelectSession);
+    window.addEventListener('chat:ai-reveal', onReveal);
+    window.addEventListener('chat:ai-modelPrefs-changed', onPrefs);
+    window.addEventListener('chat:ai-select-session', onSelectSession);
     return () => {
-      window.removeEventListener('webapp:ai-reveal', onReveal);
-      window.removeEventListener('webapp:ai-modelPrefs-changed', onPrefs);
-      window.removeEventListener('webapp:ai-select-session', onSelectSession);
+      window.removeEventListener('chat:ai-reveal', onReveal);
+      window.removeEventListener('chat:ai-modelPrefs-changed', onPrefs);
+      window.removeEventListener('chat:ai-select-session', onSelectSession);
     };
   }, []);
 
@@ -245,7 +271,6 @@ export const Chat: React.FC = () => {
       if (t.closest('.chat__mpop')
         || t.closest('.chat__modal')
         || t.closest('.chat__agent-pop')
-        || t.closest('.chat__menu')
         || t.closest('[data-ai-pop="agents"]')
         || t.closest('[data-ai-pop="models"]')
         || t.closest('[data-ai-pop="sessions"]')) return;
@@ -260,21 +285,10 @@ export const Chat: React.FC = () => {
   const loadSessions = useCallback(async () => {
     if (!client) return;
     try {
-      const list = await client.session.list();
-      setSessions(Array.isArray(list?.data) ? list.data : (list?.data?.data || []));
+      const list = await aiListSessions();
+      setSessions(Array.isArray(list) ? list : []);
     } catch { /* ignore */ }
   }, [client]);
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-  const refreshTodos = useCallback(async (sid: string) => {
-    try {
-      const list = await aiGetTodos(sid);
-      setTodos((list || []).map((t: any) => ({
-        content: String(t?.content || ''),
-        status: t?.status === 'completed' || t?.status === 'in_progress' || t?.status === 'pending' || t?.status === 'cancelled' ? t.status : 'pending',
-        priority: typeof t?.priority === 'string' ? t.priority : undefined,
-      })).filter((t: TodoItem) => t.content.trim().length > 0));
-    } catch { /* keep current */ }
-  }, []);
 
   const loadMessages = useCallback(async (sid?: string) => {
     const target = sid || sessionIDRef.current;
@@ -287,11 +301,11 @@ export const Chat: React.FC = () => {
         id: m.info?.id || m.id,
         role: m.info?.role || m.role,
         parts: m.parts || m.info?.parts || [],
+        time: m.info?.time || undefined,
       }));
       setRows(rs);
-      void refreshTodos(target);
     } catch (e) { setApiError(e); }
-  }, [client, refreshTodos, setApiError]);
+  }, [client, setApiError]);
 
   useEffect(() => {
     if (sessionID) loadMessages(sessionID);
@@ -299,29 +313,165 @@ export const Chat: React.FC = () => {
   }, [sessionID, loadMessages]);
 
   // sessionID 持久化到 sessionStorage (前端状态, 不向 server 查"最近会话")
-  const SESSION_KEY = 'animbook.chat.sessionID';
+  const SESSION_KEY = 'chat.sessionID';
+  // 仅启动时恢复一次上次会话. 注意: 不能依赖 sessionID 重跑 (restore 读 storage + write 写
+  // storage 会形成 A↔B 乒乓 → applySessionToUI 反复 session.get → 请求洪流).
   useEffect(() => {
     if (!ready || !client) return;
     const saved = sessionStorage.getItem(SESSION_KEY);
-    if (saved && saved !== sessionID) setSessionID(saved);
-  }, [ready, client, sessionID]);
+    if (saved && saved !== sessionID) { setSessionID(saved); return; }
+    if (!saved && !sessionID) { void ensureDraft(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, client]);
   useEffect(() => {
     if (sessionID) sessionStorage.setItem(SESSION_KEY, sessionID);
   }, [sessionID]);
-  const skipAutoLoad = { current: true };  // 兼容别名 (保留给清空全部会话用)
 
+  // --- opencode SSE 事件流: 打字机式流式响应 (替代 500ms 轮询) ---
+  // client.event.subscribe() → /global/event, 每个事件 { type, properties }.
+  // 注意: 事件频发时严禁触发 HTTP (loadMessages), 否则请求洪流 → ERR_INSUFFICIENT_RESOURCES.
+  // 全部从事件数据直接更新 rows; 只有 session idle 时才做一次最终同步.
   useEffect(() => {
-    if (!busy || !sessionID) return;
+    if (!client) return;
     let stopped = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const tick = async () => {
-      if (stopped) return;
-      try { await loadMessages(sessionID); } catch { /* ignore */ }
-      if (!stopped) timer = setTimeout(tick, 500);
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    const upsertRow = (id: string, role: Row['role'], parts: any[], time?: { created?: number; completed?: number }) => {
+      setRows((prev) => {
+        const idx = prev.findIndex((r) => r.id === id);
+        if (idx < 0) return [...prev, { id, role, parts, time }];
+        const next = [...prev];
+        next[idx] = { ...next[idx], parts, ...(time ? { time } : {}) };
+        return next;
+      });
     };
-    timer = setTimeout(tick, 500);
-    return () => { stopped = true; if (timer) clearTimeout(timer); };
-  }, [busy, sessionID, loadMessages]);
+    const run = async () => {
+      try {
+        const evt = await client.event.subscribe();
+        for await (const ev of evt.stream) {
+          if (stopped) break;
+          const { type, properties } = ev || {};
+          if (!type || !properties) continue;
+          // 只处理当前会话的事件
+          if (properties.sessionID && properties.sessionID !== sessionIDRef.current) continue;
+          switch (type) {
+            case 'message.part.updated': {
+              // 按 part.id upsert 任意类型 part (text/reasoning/tool/step-start 等), 不丢非 text part
+              const part = properties.part;
+              if (!part?.messageID) break;
+              setRows((prev) => {
+                const idx = prev.findIndex((r) => r.id === part.messageID);
+                if (idx < 0) {
+                  return [...prev, { id: part.messageID, role: 'assistant', parts: [part] }];
+                }
+                const next = [...prev];
+                const row = { ...next[idx] };
+                const parts = row.parts || [];
+                // 匹配: 同 id, 或本地占位 part (无 id 且同 type 同 text) → 替换, 避免 "你好你好" 重复
+                const replaceIdx = parts.findIndex((p: any) =>
+                  (p?.id && p.id === part.id)
+                  || (!p?.id && p?.type === part.type && part.text != null && p.text === part.text)
+                );
+                row.parts = replaceIdx >= 0
+                  ? parts.map((p: any, i: number) => (i === replaceIdx ? part : p))
+                  : [...parts, part];
+                next[idx] = row;
+                return next;
+              });
+              break;
+            }
+            case 'message.updated': {
+              // 完整消息更新 (message.updated 可能不带 parts, 只在有 parts 时覆盖, 避免清空流式文本)
+              const info = properties.info;
+              if (!info?.id || !info.role) break;
+              if (info.role === 'user') {
+                // 本地占位行 → 换真实 id + 用真实 parts (若有); 避免本地占位 part 与服务端 part 叠加重复
+                setRows((prev) => {
+                  const hasLocal = prev.some((r) => String(r.id).startsWith('local-'));
+                  if (hasLocal) {
+                    return prev.map((r) => (String(r.id).startsWith('local-')
+                      ? { id: info.id, role: 'user', parts: info.parts?.length ? info.parts : r.parts }
+                      : r));
+                  }
+                  if (info.parts?.length) return [...prev, { id: info.id, role: 'user', parts: info.parts }];
+                  return prev;
+                });
+              } else if (info.parts?.length) {
+                upsertRow(info.id, info.role, info.parts, info.time);
+              }
+              break;
+            }
+            case 'message.removed': {
+              const mid = properties.messageID;
+              if (mid) setRows((prev) => prev.filter((r) => r.id !== mid));
+              break;
+            }
+            case 'session.status': {
+              const st = properties.status?.type;
+              if (st === 'busy') setBusy(true);
+              else if (st === 'idle') {
+                setBusy(false);
+                // 最终同步一次 (合并事件里可能漏掉的部分)
+                void loadMessages(sessionIDRef.current);
+              }
+              break;
+            }
+            case 'session.updated': {
+              // AI 生成真实标题后同步更新 banner (占位标题仍显示"新会话")
+              const info = properties.info;
+              if (info?.id && info.id === sessionIDRef.current) {
+                const t = info.title || '';
+                setCurrentTitle(!t || /^New session\b/i.test(t) ? '新会话' : t);
+              }
+              break;
+            }
+            case 'question.asked': {
+              // A2UI 提问: 存 que_xxx (持久化) + 弹出 QuestionModal (tab 式)
+              const qid = properties.id;
+              const qsid = properties.sessionID;
+              if (qid && qsid) {
+                setQuestion(qsid, { requestID: qid, questions: properties.questions || [] });
+                if (qsid === sessionIDRef.current) {
+                  setActiveQuestion({ requestID: qid, questions: properties.questions || [] });
+                }
+              }
+              break;
+            }
+            case 'todo.updated': {
+              // todo 进度已由消息列表 todo 卡片呈现, 无需额外状态
+              break;
+            }
+            case 'permission.updated': {
+              // 工具权限请求: 弹权限卡片 (once/always/reject)
+              if (properties?.id) setPendingPermission(properties);
+              break;
+            }
+            case 'permission.replied': {
+              // 权限已回复 → 收起卡片
+              const pid = properties?.permissionID;
+              if (pid) setPendingPermission((prev: any) => (prev?.id === pid ? null : prev));
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        // SSE 断开: 退化为慢轮询兜底
+        console.warn('[chat] event stream closed, fallback poll:', e);
+      }
+      if (!stopped) reconnectTimer = setTimeout(() => { void run(); }, 3000);
+    };
+    void run();
+    return () => {
+      stopped = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+  }, [client, loadMessages]);
+
+  // busy 兜底看门狗: 事件流异常时防止 busy 卡死
+  useEffect(() => {
+    if (!busy) return;
+    const t = setTimeout(() => setBusy(false), 120000);
+    return () => clearTimeout(t);
+  }, [busy]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -338,12 +488,13 @@ export const Chat: React.FC = () => {
 
   // 从 opencode session 同步 agent/model/title 到本地 UI state
   const applySessionToUI = useCallback((session: any) => {
-    console.log('[applySessionToUI]', { model: session?.model, title: session?.title });
     if (!session) return;
     if (session.agent) setCurrentAgent(session.agent);
     if (session.model?.id) setCurrentModel(session.model.id);
     if (session.model?.providerID) setCurrentProvider(session.model.providerID);
-    setCurrentTitle(session.title || '');
+    // 占位标题 (opencode 默认 "New session - <ts>") 不显示, 用 "新会话"
+    const t = session.title || '';
+    setCurrentTitle(!t || /^New session\b/i.test(t) ? '新会话' : t);
   }, []);
 
   // 当前 session 变更 → fetch 一次 session.get 拉最新 agent/model
@@ -359,12 +510,19 @@ export const Chat: React.FC = () => {
 
   const onNewSession = useCallback(async () => {
     if (!ready || !client) return;
+    if (rows.length === 0) return;
+    cleanupDraft();
     try {
       const res = await client.session.create({});
       const sid = res?.data?.id;
-      if (sid) { setSessionID(sid); setRows([]); setShowSessions(false); }
+      if (sid) {
+        setSessionID(sid);
+        setRows([]);
+        setShowSessions(false);
+        setCurrentTitle('新会话'); // 默认标题, AI 生成真实标题后由 applySessionToUI 覆盖
+      }
     } catch (e) { setApiError(e); }
-  }, [ready, client, setApiError]);
+  }, [ready, client, rows.length, cleanupDraft, setApiError]);
 
   const selectedModel = useMemo(() => {
     if (!currentModel) return null;
@@ -407,6 +565,7 @@ export const Chat: React.FC = () => {
         sid = res?.data?.id;
         if (sid) setSessionID(sid);
       }
+      if (sid && draftRef.current?.sid === sid) draftRef.current.used = true;
       // 始终按 currentModel + currentProvider 拼 model: 优先用 models 列表里
       // (providerID, modelID) 复合 key 匹配, 找不到时回退到当前 modelID
       const model = currentModel
@@ -420,14 +579,16 @@ export const Chat: React.FC = () => {
               : { modelID: currentModel, ...(currentProvider ? { providerID: currentProvider } : {}) };
           })()
         : undefined;
-      await client.session.prompt({
+      setBusy(true);
+      // promptAsync: fire-and-forget, 回复由 SSE 事件流 (message.part.updated) 打字机式渲染
+      await client.session.promptAsync({
         sessionID: sid,
         agent: currentAgent,
         parts: [{ type: 'text', text: fullText }],
         ...(model ? { model } : {}),
       });
-      setBusy(true);
     } catch (e) {
+      setBusy(false);
       setRows((prev) => prev.filter((r) => r.id !== localId));
       setInput(text);
       setApiError(e);
@@ -442,19 +603,26 @@ export const Chat: React.FC = () => {
   }, [sessionID, client]);
 
   const onSwitchSession = useCallback((sid: string) => {
+    if (draftRef.current?.sid !== sid) cleanupDraft();
     setSessionID(sid);
     setShowSessions(false);
     setRows([]);
-  }, []);
+  }, [cleanupDraft]);
 
   const onDeleteSession = useCallback(async (sid: string) => {
     if (!client) return;
     try {
       await client.session.delete({ sessionID: sid });
+      if (draftRef.current?.sid === sid) draftRef.current = null;
       setSessions((prev) => prev.filter((s) => s.id !== sid));
-      if (sid === sessionID) { setSessionID(''); setRows([]); }
+      if (sid === sessionID) {
+        sessionIDRef.current = '';
+        setSessionID('');
+        setRows([]);
+        void ensureDraft();
+      }
     } catch (e) { setApiError(e); }
-  }, [client, sessionID, setApiError]);
+  }, [client, sessionID, ensureDraft, setApiError]);
 
   const onSwitchAgent = useCallback(async (agent: string) => {
     setCurrentAgent(agent);
@@ -657,6 +825,13 @@ export const Chat: React.FC = () => {
     if (sid) { try { await loadMessages(sid); } catch { /* ignore */ } }
   }, [loadMessages]);
 
+  const onReplyPermission = useCallback(async (permissionID: string, response: 'once' | 'always' | 'reject') => {
+    try {
+      await aiReplyPermission(sessionID, permissionID, response);
+      setPendingPermission((prev: any) => (prev?.id === permissionID ? null : prev));
+    } catch (e) { console.warn('[ai] reply permission:', e); }
+  }, [sessionID]);
+
   const onIgnoreQuestion = useCallback(async (rid: string) => {
     try {
       await aiRejectQuestion(sessionID, rid);
@@ -692,7 +867,7 @@ export const Chat: React.FC = () => {
 
   const onUploadFile = useCallback(async (files: FileList | null) => {
     if (!files || !files.length) return;
-    const fsApi = (window as any).__WEBAPP_FS_API__;
+    const fsApi = (window as any).__APP_FS_API__;
     if (!fsApi?.write) { setError('沙箱文件系统未就绪'); return; }
     const added: Array<{ name: string; path: string }> = [];
     for (const f of Array.from(files)) {
@@ -748,26 +923,20 @@ export const Chat: React.FC = () => {
     return list;
   }, [models, modelQuery, models]);
 
-  const activeTodos = useMemo(() => {
-    if (todos.length > 0) return todos;
-    const lastAssistant = [...rows].reverse().find((r) => r.role === 'assistant');
-    if (!lastAssistant) return [];
-    return findCurrentTodos(lastAssistant.parts || []);
-  }, [todos, rows]);
-
   return (
     <div className="chat">
       <style>{styles}</style>
 
       <header className="chat__topbar">
         <div className="chat__brand">
-          <span className="chat__logo">{CHAT_BRAND.logoChar}</span>
+          <span className="chat__logo">{getBrand().logoChar}</span>
           <span className="chat__brand-name">{
             (() => {
               if (!sessionID) return '新会话';
-              if (currentTitle) return currentTitle;
-              const cur = sessions.find((s: any) => s.id === sessionID);
-              return cur?.title || cur?.slug || '';
+              const t = currentTitle
+                || sessions.find((s: any) => s.id === sessionID)?.title
+                || '';
+              return !t || /^New session\b/i.test(t) ? '新会话' : t;
             })()
           }</span>
         </div>
@@ -789,66 +958,13 @@ export const Chat: React.FC = () => {
       </header>
 
       {ready && showSessions && (
-        <div className="chat__menu">
-          <div className="chat__menu-head">
-            <span>历史会话</span>
-            <div className="chat__menu-head-actions">
-              {sessions.length > 0 && (
-                <button
-                  className="chat__menu-clear"
-                  title="清空全部会话"
-                  onClick={async () => {
-                    if (!confirm('确定删除全部会话？此操作不可恢复。')) return;
-                    try {
-                      const res = await client.session.list();
-                      const list = Array.isArray(res?.data) ? res.data : (res?.data?.data || []);
-                      let n = 0;
-                      for (const s of list) {
-                        try { await client.session.delete({ sessionID: s.id }); n++; } catch { /* skip */ }
-                      }
-                      skipAutoLoad.current = true;
-                      setSessions([]);
-                      setSessionID('');
-                      setRows([]);
-                      setError('');
-                      setTimeout(() => { skipAutoLoad.current = false; }, 1000);
-                    } catch (e) { setApiError(e); }
-                  }}
-                >清空</button>
-              )}
-              <button onClick={() => setShowSessions(false)}>×</button>
-            </div>
-          </div>
-          <div className="chat__menu-body">
-            {sessions.length === 0 && <div className="chat__menu-empty">暂无历史会话</div>}
-            {sessions.map((s: any) => (
-              <div
-                key={s.id}
-                className={`chat__menu-item ${s.id === sessionID ? 'active' : ''}`}
-                onClick={() => onSwitchSession(s.id)}
-              >
-                <div className="chat__menu-item-main">
-                  <div className="chat__menu-title">{s.title || `会话 ${(s.id || '').slice(0, 8)}`}</div>
-                  <div className="chat__menu-meta">
-                    {s.time?.created ? new Date(s.time.created).toLocaleString() : ''}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="chat__menu-del"
-                  title="删除会话"
-                  onClick={(e) => { e.stopPropagation(); onDeleteSession(s.id); }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeTodos.length > 0 && (
-        <TodosDock todos={activeTodos} />
+        <SessionsModal
+          sessions={sessions}
+          currentID={sessionID}
+          onSelect={onSwitchSession}
+          onDelete={onDeleteSession}
+          onClose={() => setShowSessions(false)}
+        />
       )}
 
       <div className="chat__messages" ref={scrollRef}>
@@ -867,6 +983,7 @@ export const Chat: React.FC = () => {
               key={r.id}
               row={r}
               streaming={busy && r.role === 'assistant' && r.id === rows[rows.length - 1]?.id}
+              done={!busy}
               sessionID={sessionID}
               onReplyQuestion={onReplyQuestion}
             />
@@ -890,6 +1007,13 @@ export const Chat: React.FC = () => {
 
       {ready && (
         <div className="chat__composer">
+          {pendingPermission && (
+            <PermissionModal
+              permission={pendingPermission}
+              onReply={onReplyPermission}
+              onDismiss={() => setPendingPermission(null)}
+            />
+          )}
           {activeQuestion && (
             <QuestionModal
               questions={activeQuestion.questions}

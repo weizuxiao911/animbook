@@ -43,7 +43,7 @@ export const App: React.FC = () => {
         ...buildSlots(),
         defaultPreferences: preferences,
         // 业务 vsix 元数据 (启动期 registry 拉取填充, codeblitz in-process ext host 加载)
-        extensionMetadata: (window as any).__WEBAPP_REGISTRY_METADATA__ || [],
+        extensionMetadata: (window as any).__APP_REGISTRY_METADATA__ || [],
         modules: [
           ...defaultModules,
           ...getBuiltinModules(),

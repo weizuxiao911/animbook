@@ -10,6 +10,8 @@ export interface Row {
   role: 'user' | 'assistant';
   parts: any[];
   error?: any;
+  /** 消息时间戳 (created/completed), 用于 meta 展示耗时 */
+  time?: { created?: number; completed?: number };
 }
 
 export const HIDDEN_AGENTS = new Set(['compaction', 'title', 'summary']);
@@ -70,8 +72,31 @@ export function formatDuration(start?: number, end?: number): string {
 
 const questionStore = new Map<string, { requestID: string; questions: any[] }>();
 const questionSubscribers = new Set<() => void>();
+const QUESTION_STORAGE = 'chat.question.v1';
+
+// 从 sessionStorage 恢复 (question.asked 事件是实时的, 重载后会丢, 需要持久化 que_xxx)
+function hydrateQuestionStore(): void {
+  try {
+    const raw = sessionStorage.getItem(QUESTION_STORAGE);
+    if (!raw) return;
+    const obj = JSON.parse(raw) as Record<string, { requestID: string; questions: any[] }>;
+    for (const [k, v] of Object.entries(obj)) {
+      if (v?.requestID) questionStore.set(k, v);
+    }
+  } catch { /* ignore */ }
+}
+hydrateQuestionStore();
 
 export function notifyQuestionChange() { questionSubscribers.forEach((fn) => fn()); }
+
+/** 记录某会话的待答问题 (que_xxx), 持久化到 sessionStorage 供重载后继续作答 */
+export function setQuestion(sessionID: string, data: { requestID: string; questions: any[] }): void {
+  questionStore.set(sessionID, data);
+  try {
+    sessionStorage.setItem(QUESTION_STORAGE, JSON.stringify(Object.fromEntries(questionStore)));
+  } catch { /* ignore */ }
+  notifyQuestionChange();
+}
 
 export function getQuestionStore(): Map<string, { requestID: string; questions: any[] }> {
   return questionStore;

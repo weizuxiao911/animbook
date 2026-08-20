@@ -2,7 +2,7 @@
  * registry 客户端服务 — services/registry.ts
  *
  * 与 registry 分发服务器 (registry/) 通信:
- *   1. 启动期拉取 vsix 元数据清单 → 填充 __WEBAPP_REGISTRY_METADATA__,
+ *   1. 启动期拉取 vsix 元数据清单 → 填充 __APP_REGISTRY_METADATA__,
  *      App 渲染时传给 codeblitz 走 in-process ext host 加载 vsix.
  *   2. 覆盖 kt-ext 静态资源解析 → 同源 <registryUrl>/<id> (dev webpack 反代 /
  *      生产反向代理到 registry), 避免直连 https://registry 的自签证书问题.
@@ -13,7 +13,7 @@ import { BrowserModule, Domain, URI } from '@opensumi/ide-core-browser';
 import { StaticResourceContribution, StaticResourceService } from '@opensumi/ide-core-browser/lib/static-resource';
 import { EXT_SCHEME } from '@codeblitzjs/ide-sumi-core/lib/common/constant';
 
-const REGISTRY_URL = (window as any).__WEBAPP_CONFIG__?.registryUrl || '/extensions';
+const REGISTRY_URL = (window as any).__APP_CONFIG__?.registryUrl || '/extensions';
 
 /**
  * kt-ext 静态资源贡献 — 覆盖 codeblitz 默认的 kt-ext→https 解析.
@@ -74,13 +74,13 @@ export async function fetchRegistryMetadata(): Promise<VsixMetadata[]> {
 export async function installRegistryMetadata(): Promise<VsixMetadata[]> {
   try {
     const metadata = await fetchRegistryMetadata();
-    (window as any).__WEBAPP_REGISTRY_METADATA__ = metadata;
+    (window as any).__APP_REGISTRY_METADATA__ = metadata;
     console.log('[registry] metadata 拉取 OK,', metadata.length, 'entries:',
       metadata.map((m) => m.extension.name).join(', '));
     return metadata;
   } catch (e: any) {
     console.warn('[registry] metadata 拉取失败:', e?.message);
-    (window as any).__WEBAPP_REGISTRY_METADATA__ = [];
+    (window as any).__APP_REGISTRY_METADATA__ = [];
     return [];
   }
 }

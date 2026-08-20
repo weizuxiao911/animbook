@@ -63,7 +63,7 @@ function relToUri(filepath: string): string {
 /** 查询浏览器侧 (IndexedDB/OverlayFS) 该路径是否为目录 */
 async function isDirOnBrowser(filepath: string): Promise<boolean> {
   try {
-    const fileService = (window as any).__WEBAPP_FILE_SERVICE__;
+    const fileService = (window as any).__APP_FILE_SERVICE__;
     if (!fileService) return false;
     const stat = await fileService.getFileStat(relToUri(filepath));
     return !!stat?.isDirectory;

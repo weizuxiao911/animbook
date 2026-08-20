@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Markdown } from './Markdown';
 import { ReasoningView } from './Reasoning';
 import { TodoCard } from './TodoCard';
-import { QuestionCard } from './QuestionCard';
+import { extractQuestions } from './QuestionCard';
 import { SubAgentCard } from './SubAgentCard';
 import { ToolView } from './ToolView';
 
@@ -20,11 +20,13 @@ export function getToolKind(tool: string): ToolKind {
 export const PartRenderer: React.FC<{
   part: any;
   streaming?: boolean;
+  /** 对话是否已结束 (busy=false): 结束后卡片自动折叠 */
+  done?: boolean;
   sessionID: string;
   onReply: (sid: string, rid: string, answers: string[][]) => Promise<void>;
   preferredQuestionRequestID?: string;
   preferredQuestionQuestions?: any[];
-}> = ({ part, streaming, sessionID, onReply, preferredQuestionRequestID, preferredQuestionQuestions }) => {
+}> = ({ part, streaming, done, sessionID, onReply, preferredQuestionRequestID, preferredQuestionQuestions }) => {
   if (!part || part.synthetic || part.ignored) return null;
 
   switch (part.type) {
@@ -34,30 +36,27 @@ export const PartRenderer: React.FC<{
       return <Markdown content={text} streaming={streaming} expand={streaming} />;
     }
     case 'reasoning':
-      return <ReasoningView part={part} streaming={streaming} />;
+      return <ReasoningView part={part} streaming={streaming} done={done} />;
     case 'tool': {
       const kind = getToolKind(String(part.tool || ''));
       switch (kind) {
         case 'question': {
-          const status = part?.state?.status;
-          if (status === 'pending' || status === 'running') {
-            return <div className="q q--waiting"><span className="q__badge">?</span><span>等待回答...</span></div>;
-          }
+          // 消息流内显示问题记录 (紧凑, 可折叠); 实际作答走 QuestionModal
+          const qs = extractQuestions(part);
+          const meta = part?.state?.metadata;
+          const answered = part?.state?.status === 'completed' || !!meta?.answers;
+          const answers: any[] = Array.isArray(meta?.answers) ? meta.answers : [];
+          if (!qs || qs.length === 0) return null;
           return (
-            <QuestionCard
-              part={part}
-              sessionID={sessionID}
-              onReply={onReply}
-              preferredRequestID={preferredQuestionRequestID}
-            />
+            <QRecord qs={qs} answered={answered} answers={answers} done={done} />
           );
         }
         case 'todowrite':
-          return <TodoCard part={part} />;
+          return <TodoCard part={part} done={done} />;
         case 'subagent':
           return <SubAgentCard part={part} />;
         default:
-          return <ToolView part={part} />;
+          return <ToolView part={part} done={done} />;
       }
     }
     case 'step-start':
@@ -71,4 +70,39 @@ export const PartRenderer: React.FC<{
     default:
       return null;
   }
+};
+
+/** 问题记录卡 (消息流内, 可折叠) — 展示问题与回答, 实际作答走 QuestionModal */
+const QRecord: React.FC<{
+  qs: Array<{ question: string; header?: string; options?: any[] }>;
+  answered: boolean;
+  answers: any[];
+  done?: boolean;
+}> = ({ qs, answered, answers, done }) => {
+  const [open, setOpen] = useState(true);
+  // 对话完成后自动折叠
+  useEffect(() => { if (done) setOpen(false); }, [done]);
+  return (
+    <div className={`q is-done${open ? ' is-open' : ''}${answered ? ' is-answered' : ''}`}>
+      <button type="button" className="q__head" onClick={() => setOpen((v) => !v)}>
+        <span className="q__badge">?</span>
+        <span className="q__head-title">
+          问题 {qs.length}{answered ? ' 已回答' : ' 待回答'}
+        </span>
+        <span className="q__caret">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && qs.map((q, qi) => (
+        <div className="q__summary" key={qi}>
+          <div className="q__q">{q.question}</div>
+          {answered && answers[qi] && (
+            <div className="q__opt-desc">
+              回答：{Array.isArray(answers[qi])
+                ? answers[qi].map((a: string) => String(a).replace(/^__custom__:/, '')).join('、')
+                : String(answers[qi])}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 };

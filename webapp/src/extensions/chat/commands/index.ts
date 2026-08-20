@@ -16,31 +16,31 @@ import {
 /**
  * ai commands — AI 会话/消息/agent 能力 (按工具集分组维护)
  *
- * 命名约定: animbook.ai.{action}
- *   animbook.ai.session.create      (title?)           → sessionID   创建新会话
- *   animbook.ai.session.list        ()                 → Session[]   历史会话
- *   animbook.ai.session.switch      (sessionID)        → void        切换会话
- *   animbook.ai.message.list        (sessionID)        → Message[]   会话消息
- *   animbook.ai.message.send        (sessionID, text)  → void        发送消息 (async_prompt)
- *   animbook.ai.message.abort       (sessionID)        → void        中断
- *   animbook.ai.agent.list          ()                 → Agent[]     subagent 列表
- *   animbook.ai.agent.switch        (sessionID, agent) → void        切换 agent
- *   animbook.ai.a2ui.question.reply (sessionID, requestID, answers) → void
+ * 命名约定: chat.ai.{action}
+ *   chat.ai.session.create      (title?)           → sessionID   创建新会话
+ *   chat.ai.session.list        ()                 → Session[]   历史会话
+ *   chat.ai.session.switch      (sessionID)        → void        切换会话
+ *   chat.ai.message.list        (sessionID)        → Message[]   会话消息
+ *   chat.ai.message.send        (sessionID, text)  → void        发送消息 (async_prompt)
+ *   chat.ai.message.abort       (sessionID)        → void        中断
+ *   chat.ai.agent.list          ()                 → Agent[]     subagent 列表
+ *   chat.ai.agent.switch        (sessionID, agent) → void        切换 agent
+ *   chat.ai.a2ui.question.reply (sessionID, requestID, answers) → void
  *
  * 全部走 @opencode-ai/sdk (v2) client, 不直连 HTTP.
  * Module: AiCommandsModule, appConfig.modules: [AiCommandsModule] 注入 DI.
  */
 
 export const AI_CMD = {
-  SESSION_CREATE: 'animbook.ai.session.create',
-  SESSION_LIST: 'animbook.ai.session.list',
-  SESSION_SWITCH: 'animbook.ai.session.switch',
-  MESSAGE_LIST: 'animbook.ai.message.list',
-  MESSAGE_SEND: 'animbook.ai.message.send',
-  MESSAGE_ABORT: 'animbook.ai.message.abort',
-  AGENT_LIST: 'animbook.ai.agent.list',
-  AGENT_SWITCH: 'animbook.ai.agent.switch',
-  A2UI_QUESTION_REPLY: 'animbook.ai.a2ui.question.reply',
+  SESSION_CREATE: 'chat.ai.session.create',
+  SESSION_LIST: 'chat.ai.session.list',
+  SESSION_SWITCH: 'chat.ai.session.switch',
+  MESSAGE_LIST: 'chat.ai.message.list',
+  MESSAGE_SEND: 'chat.ai.message.send',
+  MESSAGE_ABORT: 'chat.ai.message.abort',
+  AGENT_LIST: 'chat.ai.agent.list',
+  AGENT_SWITCH: 'chat.ai.agent.switch',
+  A2UI_QUESTION_REPLY: 'chat.ai.a2ui.question.reply',
 } as const;
 
 @Injectable()

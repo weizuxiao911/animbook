@@ -97,7 +97,7 @@ export class OpenCodePtyService implements ITerminalServiceClient {
   private exitEmitters = new Map<string, Emitter<{ code?: number; signal?: number }>>();
 
   private get client(): any {
-    return (window as any).__WEBAPP_OPENCODE__ || null;
+    return (window as any).__APP_OPENCODE__ || null;
   }
 
   private get cwd(): string {

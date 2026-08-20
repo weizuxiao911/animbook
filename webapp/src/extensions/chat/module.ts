@@ -4,7 +4,7 @@ import { BrowserModule, SlotLocation } from '@opensumi/ide-core-browser';
 import { ComponentContribution, ComponentRegistry } from '@opensumi/ide-core-browser/lib/layout';
 
 import { Chat } from './webview/Chat';
-import { CHAT_BRAND } from './brand';
+import { getBrand } from './brand';
 
 @Injectable()
 @Domain(ComponentContribution)
@@ -16,7 +16,7 @@ export class ChatContribution implements ComponentContribution {
     }, {
       containerId: 'chat-panel',
       iconClass: 'codicon codicon-sparkle',
-      title: `${CHAT_BRAND.name} 对话`,
+      title: `${getBrand().name} 对话`,
     }, SlotLocation.right);
   }
 }

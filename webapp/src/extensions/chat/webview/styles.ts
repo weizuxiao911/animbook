@@ -6,8 +6,8 @@
 export const styles = `
 .chat {
   /* ========== 主题色板: 优先使用 IDE/VSCode 主题变量, 暗色兜底 ========== */
-  /* 与 left slot 保持一致 (var(--tc-surface-muted)) */
-  --ai-bg: var(--tc-surface-muted, var(--editor-background, #181818));
+  /* 与 left slot 保持一致 (var(--app-surface-muted)) */
+  --ai-bg: var(--app-surface-muted, var(--editor-background, #181818));
   /* 弹层/浮起表面: 不允许透明, 用 editorWidget-background (VSCode 标准弹层色) */
   --ai-bg-elev: var(--editorWidget-background, var(--sideBar-background, var(--ai-bg, #1c1c22)));
   --ai-bg-input: color-mix(in srgb, var(--ai-fg, #e5e7eb) 5%, var(--ai-bg-elev));
@@ -62,58 +62,6 @@ export const styles = `
   cursor: pointer;
 }
 .chat__icon-btn:hover { background: var(--ai-hover); color: var(--ai-fg); }
-
-/* Menus / popovers */
-.chat__menu {
-  position: absolute; top: 38px; right: 8px; z-index: 50;
-  width: 260px; max-height: 360px;
-  background: var(--ai-bg-elev);
-  border: 1px solid var(--ai-border);
-  border-radius: 10px; box-shadow: var(--ai-shadow);
-  display: flex; flex-direction: column; overflow: hidden;
-}
-.chat__menu-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px; font-size: 12px; color: var(--ai-fg-muted);
-  background: var(--ai-bg-elev);
-  border-bottom: 1px solid var(--ai-divider);
-}
-.chat__menu-head-actions { display: flex; align-items: center; gap: 6px; }
-.chat__menu-clear {
-  background: transparent; border: none;
-  color: var(--ai-danger); font-size: 12px; cursor: pointer; padding: 2px 6px;
-  border-radius: 4px;
-}
-.chat__menu-clear:hover { background: var(--ai-danger-bg); }
-.chat__menu-head button {
-  background: transparent; border: none; color: var(--ai-fg-muted);
-  font-size: 13px; cursor: pointer; line-height: 1;
-}
-.chat__menu-body {
-  overflow-y: auto; padding: 4px;
-  background: var(--ai-bg-elev);
-}
-.chat__menu-empty { padding: 20px; text-align: center; color: var(--ai-fg-muted); font-size: 12px; }
-.chat__menu-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; border-radius: 6px; cursor: pointer;
-  background: transparent;
-}
-.chat__menu-item:hover { background: var(--ai-hover); }
-.chat__menu-item.active { background: var(--ai-active); }
-.chat__menu-item-main { flex: 1; min-width: 0; }
-.chat__menu-title { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat__menu-meta { font-size: 10.5px; color: var(--ai-fg-muted); margin-top: 2px; }
-.chat__menu-del {
-  flex-shrink: 0;
-  width: 22px; height: 22px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 5px;
-  color: var(--ai-fg-muted); cursor: pointer; padding: 0;
-  opacity: 0;
-}
-.chat__menu-item:hover .chat__menu-del { opacity: 1; }
-.chat__menu-del:hover { background: var(--ai-danger-bg); color: var(--ai-danger); }
 
 /* Todos bar */
 /* Todos dock (above composer, OpenCode style) */
@@ -177,6 +125,8 @@ export const styles = `
 .chat__msg { margin: 6px 0; display: flex; min-width: 0; max-width: 100%; }
 .chat__msg.is-user { justify-content: flex-end; }
 .chat__msg.is-assistant { justify-content: flex-start; }
+/* assistant 消息体撑满消息列宽, 卡片宽度统一适配 */
+.chat__msg.is-assistant > .chat__msg-body { flex: 1; min-width: 0; }
 .chat__msg-user-col { display: flex; flex-direction: column; align-items: flex-end; max-width: 100%; min-width: 0; }
 .chat__msg-body {
   max-width: 100%; min-width: 0;
@@ -185,6 +135,17 @@ export const styles = `
   overflow-wrap: anywhere;
 }
 .chat__msg-body > * { min-width: 0; max-width: 100%; }
+/* 卡片/文本统一占满消息体宽度 */
+.chat__msg-body > div,
+.chat__msg-body > section,
+.chat__msg-body > aside,
+.chat__msg-body > .chat-md,
+.chat__msg-body > .tool,
+.chat__msg-body > .todo,
+.chat__msg-body > .reason,
+.chat__msg-body > .q {
+  width: 100%; box-sizing: border-box;
+}
 .chat__msg-body pre, .chat__msg-body code {
   max-width: 100%;
   overflow-x: auto;
@@ -211,13 +172,12 @@ export const styles = `
   box-sizing: border-box;
 }
 .chat__msg-meta {
-  display: flex; align-items: center; gap: 6px;
+  display: flex;
+  align-items: center; gap: 6px;
   margin-top: 4px;
   font-size: 11px;
   color: var(--ai-fg-muted);
-  opacity: 0; transition: opacity .12s;
 }
-.chat__msg-meta.is-visible { opacity: 1; }
 .chat__msg-meta.is-user { justify-content: flex-end; }
 .chat__msg-copy {
   width: 22px; height: 22px;
@@ -407,6 +367,10 @@ export const styles = `
   display: inline-flex; align-items: center; gap: 8px;
 }
 .chat__modal-title-icon { color: var(--ai-accent); display: inline-flex; }
+.chat__modal-count {
+  font-size: 12px; font-weight: 400; color: var(--ai-fg-muted);
+  margin-left: 2px;
+}
 .chat__modal-subtitle {
   font-size: 13px; color: var(--ai-fg-muted);
 }
@@ -598,6 +562,30 @@ export const styles = `
 .chat__modal-btn-continue:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
+/* Sessions modal — 历史会话 */
+.chat__sess-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.chat__sess-clear {
+  background: transparent; border: 1px solid var(--ai-border); border-radius: 6px;
+  color: var(--ai-danger); font-size: 12px; cursor: pointer; padding: 4px 10px;
+}
+.chat__sess-clear:hover { background: var(--ai-danger-bg); }
+.chat__sess-item { padding-right: 8px; }
+.chat__sess-dir {
+  flex-shrink: 0; max-width: 130px;
+  font-size: 10.5px; color: var(--ai-fg-muted); opacity: .75;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat__sess-del {
+  flex-shrink: 0; width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 5px;
+  color: var(--ai-fg-muted); cursor: pointer; padding: 0;
+  opacity: 0;
+}
+.chat__modal-item:hover .chat__sess-del { opacity: 1; }
+.chat__sess-del:hover { background: var(--ai-danger-bg); color: var(--ai-danger); }
+
+
 /* ========== 命令 / 提及 弹层 (输入框上方, 与 agent-pop 风格统一) ========== */
 .chat__cmd-pop {
   position: absolute; bottom: calc(100% + 6px); left: 12px; right: 12px;
@@ -752,77 +740,81 @@ export const styles = `
 .tool__section.is-error pre { color: var(--ai-danger); background: color-mix(in srgb, var(--ai-danger-bg) 30%, var(--ai-bg)); }
 
 /* ========== Question card (OpenCode style) ========== */
-q {
+.q {
   margin: 4px 0;
   background: var(--ai-input-bg);
   border: 1px solid var(--ai-divider);
   border-radius: 8px;
   overflow: hidden;
+  min-width: 0;
 }
-q__head {
-  display: flex; align-items: center; gap: 6px;
-  padding: 7px 10px;
-  cursor: pointer;
-  user-select: none;
-  font-size: 12.5px;
+.q__head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 8px 10px;
+  background: transparent; border: none; cursor: pointer;
+  user-select: none; font-family: inherit;
+  font-size: 12.5px; text-align: left;
 }
-q__head:hover { background: var(--ai-input-bg); }
-q__badge {
+.q__head:hover { background: var(--ai-input-bg); }
+.q__badge {
   font-size: 11px; color: var(--ai-fg-muted);
   display: inline-flex; align-items: center; justify-content: center;
 }
-q__head-title { flex: 1; font-weight: 500; }
-q__caret { color: var(--ai-fg-muted); font-size: 9px; }
-q__summary {
+.q__head-title { flex: 1; font-weight: 500; }
+.q__caret {
+  color: var(--ai-fg-muted); font-size: 11px; flex-shrink: 0;
+  padding: 0 4px; min-width: 14px; text-align: center;
+}
+.q__summary {
   padding: 2px 10px 8px 26px;
   font-size: 12.5px; color: var(--ai-fg);
   line-height: 1.5;
 }
-q__item { padding: 4px 10px 8px; }
-q__q {
+.q__item { padding: 4px 10px 8px; }
+.q__q {
   font-size: 13px; line-height: 1.5;
   margin-bottom: 6px;
 }
-q__opts { display: flex; flex-direction: column; gap: 4px; }
-q__opt {
+.q__opts { display: flex; flex-direction: column; gap: 4px; }
+.q__opt {
   display: flex; align-items: flex-start; gap: 8px;
   width: 100%; padding: 7px 10px;
   background: transparent; border: 1px solid transparent; border-radius: 6px;
   color: var(--ai-fg); font-family: inherit; font-size: 13px;
   cursor: pointer; text-align: left;
 }
-q__opt:hover { background: var(--ai-input-bg); }
-q__opt.is-active { background: var(--ai-active); }
-q__opt-mark {
+.q__opt:hover { background: var(--ai-input-bg); }
+.q__opt.is-active { background: var(--ai-active); }
+.q__opt-mark {
   flex-shrink: 0; font-size: 13px; line-height: 1.4;
   color: var(--ai-fg-muted);
 }
-q__opt.is-active q__opt-mark { color: var(--ai-accent); }
-q__opt-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-q__opt-label { font-size: 13px; }
-q__opt-desc { font-size: 11.5px; color: var(--ai-fg-muted); line-height: 1.4; }
-q__custom {
+.q__opt.is-active .q__opt-mark { color: var(--ai-accent); }
+.q__opt-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.q__opt-label { font-size: 13px; }
+.q__opt-desc { font-size: 11.5px; color: var(--ai-fg-muted); line-height: 1.4; }
+.q__custom {
   width: 100%; resize: none;
   background: transparent; border: none; outline: none;
   color: var(--ai-fg);
   font-family: inherit; font-size: 13px;
   padding: 2px 0;
 }
-q__custom::placeholder { color: var(--ai-fg-muted); }
-q__custom-opt { cursor: text; }
-q__foot {
+.q__custom::placeholder { color: var(--ai-fg-muted); }
+.q__custom-opt { cursor: text; }
+.q__foot {
   display: flex; justify-content: flex-end; gap: 8px;
   padding: 0 10px 10px;
 }
-q__submit {
+.q__submit {
   padding: 5px 14px; border-radius: 6px; cursor: pointer;
   background: var(--ai-hover);
   color: var(--ai-fg);
   border: 1px solid var(--ai-border);
   font-size: 12px; font-weight: 500;
 }
-q__submit:hover { background: var(--ai-hover); }
-q__submit:disabled { opacity: 0.5; cursor: default; }
+.q__submit:hover { background: var(--ai-hover); }
+.q__submit:disabled { opacity: 0.5; cursor: default; }
 .q--waiting {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 12px;
@@ -919,34 +911,109 @@ q__submit:disabled { opacity: 0.5; cursor: default; }
 .chat__qmodal-btn--primary:hover { background: var(--ai-hover); }
 .chat__qmodal-btn:disabled { opacity: 0.5; cursor: default; }
 
-/* ========== Reasoning (OpenCode style) ========== */
-reason {
+/* ========== Todo card (OpenCode style) ========== */
+.todo {
   margin: 4px 0;
   background: var(--ai-input-bg);
   border: 1px solid var(--ai-divider);
   border-radius: 8px;
   overflow: hidden;
+  min-width: 0;
 }
-reason__head {
+.todo__head {
   display: flex; align-items: center; gap: 8px;
-  width: 100%; padding: 7px 10px;
+  width: 100%; padding: 8px 10px;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--ai-fg); font-size: 12.5px; font-family: inherit;
+  text-align: left; min-width: 0;
+}
+.todo__head:hover { background: var(--ai-hover); }
+.todo.is-open > .todo__head { background: var(--ai-active); }
+.todo__status {
+  width: 20px; height: 20px; border-radius: 5px;
+  background: var(--ai-hover);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; flex-shrink: 0;
+  color: var(--ai-fg);
+}
+.todo__status--completed { color: var(--ai-success); }
+.todo__status--cancelled { color: var(--ai-danger); }
+.todo__title {
+  font-weight: 600; font-size: 12px;
+  color: var(--ai-fg); flex: 1; min-width: 0;
+}
+.todo__caret {
+  color: var(--ai-fg-muted); font-size: 11px; flex-shrink: 0;
+  padding: 0 4px; min-width: 14px; text-align: center;
+}
+.todo.is-open > .todo__head .todo__caret { color: var(--ai-fg); }
+.todo__list {
+  list-style: none; margin: 0; padding: 0 10px 8px;
+}
+.todo__item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 4px 0 4px 28px;
+  font-size: 12.5px; line-height: 1.5;
+  color: var(--ai-fg);
+}
+.todo__item.is-completed,
+.todo__item.is-cancelled {
+  color: var(--ai-fg-muted);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.todo__item.is-cancelled .todo__check { color: var(--ai-danger); }
+.todo__item.is-in_progress { font-weight: 500; color: var(--ai-fg); }
+.todo__check {
+  flex-shrink: 0;
+  margin-left: -22px;
+  font-size: 12px;
+  color: var(--ai-fg-muted);
+}
+.todo__item.is-completed .todo__check,
+.todo__item.is-in_progress .todo__check { color: var(--ai-fg); }
+.todo__content { flex: 1; min-width: 0; word-break: break-word; }
+.todo__pri {
+  flex-shrink: 0;
+  font-size: 10px; font-weight: 600;
+  padding: 1px 6px; border-radius: 4px;
+  background: var(--ai-hover);
+}
+.todo__pri.is-high { color: var(--ai-danger); }
+.todo__pri.is-low { color: var(--ai-fg-muted); }
+.todo__icon { color: var(--ai-fg-muted); }
+.todo__icon--spin { display: inline-block; animation: todoSpin 1s linear infinite; }
+@keyframes todoSpin { to { transform: rotate(360deg); } }
+
+/* ========== Reasoning (OpenCode style) ========== */
+.reason {
+  margin: 4px 0;
+  background: var(--ai-input-bg);
+  border: 1px solid var(--ai-divider);
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 0;
+}
+.reason__head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 8px 10px;
   background: transparent; border: none; cursor: pointer;
   color: var(--ai-fg-muted); font-family: inherit;
   font-size: 12.5px; text-align: left;
 }
-reason__head:hover { background: var(--ai-input-bg); color: var(--ai-fg); }
-reason__icon {
+.reason__head:hover { background: var(--ai-input-bg); color: var(--ai-fg); }
+.reason__icon {
   display: inline-flex; align-items: center; justify-content: center;
   color: var(--ai-fg-muted);
 }
-reason__caret {
+.reason__caret {
   margin-left: auto;
   color: var(--ai-fg-muted); font-size: 9px;
 }
-reason__body {
+.reason__body {
   padding: 2px 10px 10px 30px;
 }
-reason__body pre {
+.reason__body pre {
   margin: 0;
   font-family: inherit;
   font-size: 12.5px;

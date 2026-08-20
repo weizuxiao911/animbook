@@ -34,7 +34,7 @@ export class FsServiceBridgeContribution implements ClientAppContribution {
   private readonly fileService!: IFileServiceClient;
 
   onDidStart(): void {
-    (window as any).__WEBAPP_FILE_SERVICE__ = this.fileService;
+    (window as any).__APP_FILE_SERVICE__ = this.fileService;
   }
 }
 

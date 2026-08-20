@@ -42,15 +42,34 @@ export async function aiCreateSession(title?: string): Promise<string> {
   return data.id;
 }
 
-/** 历史会话列表 — v2.session.list */
+/** 当前实例工作目录 — client.path.get() → directory (server 启动 cwd) */
+export async function aiGetCwd(): Promise<string> {
+  await waitForAiReady();
+  const client = getAiClient()!;
+  const { data } = await (client as any).path.get();
+  return typeof data?.directory === 'string' ? data.directory : '';
+}
+
+/** 目录是否位于当前工作目录或其子目录内 (排除父级/兄弟目录) */
+export function isWithinCwd(dir: string | undefined, cwd: string): boolean {
+  if (!dir || !cwd) return false;
+  const d = dir.replace(/\\/g, '/').replace(/\/+$/, '');
+  const c = cwd.replace(/\\/g, '/').replace(/\/+$/, '');
+  return d === c || d.startsWith(c + '/');
+}
+
+/** 历史会话列表 — 仅当前工作目录及其子目录 (不向上层获取).
+ *  v2.session.list 只返回当前项目会话; 这里再按 directory 前缀过滤,
+ *  确保只看到 cwd 及子目录下创建的会话, 排除父级/兄弟目录. */
 export async function aiListSessions(): Promise<any[]> {
   await waitForAiReady();
   const client = getAiClient()!;
+  const cwd = await aiGetCwd().catch(() => '');
   const { data, error } = await (client as any).session.list();
   if (error) throw error;
-  if (Array.isArray(data)) return data;
-  if (data && Array.isArray((data as any).data)) return (data as any).data;
-  return [];
+  const list: any[] = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
+  // cwd 未知时返回空, 避免泄漏上层/其他目录会话
+  return cwd ? list.filter((s) => isWithinCwd(s?.directory, cwd)) : [];
 }
 
 /** 会话消息列表 — v2.session.messages({ sessionID }) */
@@ -291,6 +310,21 @@ export async function aiRejectQuestion(sessionID: string, requestID: string): Pr
   await waitForAiReady();
   const client = getAiClient()!;
   const { error } = await (client as any).question.reject({ requestID });
+  if (error) throw error;
+}
+
+/** 回复工具权限请求 — POST /session/{id}/permissions/{permissionID}, response: once/always/reject */
+export async function aiReplyPermission(
+  sessionID: string,
+  permissionID: string,
+  response: 'once' | 'always' | 'reject',
+): Promise<void> {
+  await waitForAiReady();
+  const client = getAiClient()!;
+  const { error } = await (client as any).postSessionIdPermissionsPermissionId({
+    path: { id: sessionID, permissionID },
+    body: { response },
+  });
   if (error) throw error;
 }
 

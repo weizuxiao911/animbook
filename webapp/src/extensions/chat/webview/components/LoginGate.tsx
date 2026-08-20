@@ -1,11 +1,11 @@
 import React from 'react';
-import { CHAT_BRAND } from '../../brand';
+import { getBrand } from '../../brand';
 
 export const LoginGate: React.FC = () => (
   <div className="chat__gate">
     <div className="chat__gate-logo"><span>T</span></div>
     <h2 className="chat__gate-title">
-      与 <span className="chat__gate-brand">{CHAT_BRAND.nameZh}</span> 一起，开启智能阅读
+      与 <span className="chat__gate-brand">{getBrand().nameZh}</span> 一起，开启智能阅读
     </h2>
     <ul className="chat__gate-features">
       <li>
@@ -24,9 +24,9 @@ export const LoginGate: React.FC = () => (
     <button
       type="button"
       className="chat__gate-btn"
-      onClick={() => window.dispatchEvent(new CustomEvent('webapp:login-show'))}
+      onClick={() => window.dispatchEvent(new CustomEvent('chat:login-show'))}
     >
-      {CHAT_BRAND.loginButton}
+      {getBrand().loginButton}
     </button>
   </div>
 );

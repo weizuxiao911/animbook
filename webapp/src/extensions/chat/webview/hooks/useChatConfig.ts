@@ -63,19 +63,19 @@ export function useChatConfig(ready: boolean, loggedIn: boolean) {
     };
     void wrap();
     const onSandboxReady = () => { if (timer) clearTimeout(timer); void wrap(); };
-    window.addEventListener('webapp:sandbox-ready', onSandboxReady);
+    window.addEventListener('chat:sandbox-ready', onSandboxReady);
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
-      window.removeEventListener('webapp:sandbox-ready', onSandboxReady);
+      window.removeEventListener('chat:sandbox-ready', onSandboxReady);
     };
   }, [ready, loggedIn, attempt]);
 
   // 监听 model prefs 变化 (e.g. ModelPicker 设置了默认)
   useEffect(() => {
     const onPrefs = () => setModelsRefresh((n) => n + 1);
-    window.addEventListener('webapp:ai-modelPrefs-changed', onPrefs);
-    return () => window.removeEventListener('webapp:ai-modelPrefs-changed', onPrefs);
+    window.addEventListener('chat:ai-modelPrefs-changed', onPrefs);
+    return () => window.removeEventListener('chat:ai-modelPrefs-changed', onPrefs);
   }, []);
 
   const onSwitchAgent = useCallback(async (agent: string) => {

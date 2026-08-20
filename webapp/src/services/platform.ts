@@ -59,12 +59,12 @@ export function getOperatingSystem(): 1 | 2 | 3 {
 
 /**
  * 默认交互 shell.
- * 优先级: window.__WEBAPP_SHELL__ (宿主注入) → 平台默认
+ * 优先级: window.__APP_SHELL__ (宿主注入) → 平台默认
  * (macOS zsh, Linux bash, Windows powershell.exe)
  */
 export function getDefaultShell(): string {
   const envShell = typeof window !== 'undefined'
-    ? (window as any).__WEBAPP_SHELL__
+    ? (window as any).__APP_SHELL__
     : '';
   if (envShell) return envShell;
   switch (getPlatform()) {

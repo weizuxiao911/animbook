@@ -23,7 +23,7 @@ import {
  *   - 底部: opencode 连接状态 + 工作空间目录
  *
  * 事件/驱动:
- *   - 新建/选择: aiCreateSession() → 派发 webapp:ai-select-session → Chat 监听并切换
+ *   - 新建/选择: aiCreateSession() → 派发 chat:ai-select-session → Chat 监听并切换
  *   - AI/终端/文件: IMainLayoutService.toggleSlot + updateCurrentContainerId
  *
  * 数据源: opencode SDK (单一真实来源), 不维护本地副本.
@@ -73,13 +73,13 @@ export const SessionsView: React.FC<SessionsViewProps> = (props) => {
     void refresh();
     const t = setInterval(() => { void refresh(); }, 30000);
     const onReady = () => { void refresh(); };
-    window.addEventListener('webapp:opencode-ready', onReady);
+    window.addEventListener('app:opencode-ready', onReady);
     const onAiRefresh = () => { void refresh(); };
-    window.addEventListener('webapp:ai-sessions-changed', onAiRefresh);
+    window.addEventListener('chat:ai-sessions-changed', onAiRefresh);
     return () => {
       clearInterval(t);
-      window.removeEventListener('webapp:opencode-ready', onReady);
-      window.removeEventListener('webapp:ai-sessions-changed', onAiRefresh);
+      window.removeEventListener('app:opencode-ready', onReady);
+      window.removeEventListener('chat:ai-sessions-changed', onAiRefresh);
     };
   }, [refresh]);
 
@@ -96,7 +96,7 @@ export const SessionsView: React.FC<SessionsViewProps> = (props) => {
   const selectSession = useCallback((sessionID: string) => {
     showRight('chat-panel');
     window.dispatchEvent(
-      new CustomEvent('webapp:ai-select-session', { detail: { sessionID } }),
+      new CustomEvent('chat:ai-select-session', { detail: { sessionID } }),
     );
   }, [showRight]);
 
@@ -105,7 +105,7 @@ export const SessionsView: React.FC<SessionsViewProps> = (props) => {
     setBusyId('__new__');
     try {
       const id = await aiCreateSession();
-      window.dispatchEvent(new CustomEvent('webapp:ai-sessions-changed'));
+      window.dispatchEvent(new CustomEvent('chat:ai-sessions-changed'));
       selectSession(id);
     } catch (e) {
       setError(String((e as any)?.message || e));
@@ -121,7 +121,7 @@ export const SessionsView: React.FC<SessionsViewProps> = (props) => {
     setBusyId(sessionID);
     try {
       await aiDeleteSession(sessionID);
-      window.dispatchEvent(new CustomEvent('webapp:ai-sessions-changed'));
+      window.dispatchEvent(new CustomEvent('chat:ai-sessions-changed'));
       await refresh();
     } catch (err) {
       setError(String((err as any)?.message || err));
@@ -382,8 +382,8 @@ const rootStyle: React.CSSProperties = {
   height: '100%',
   width: '100%',
   boxSizing: 'border-box',
-  background: 'var(--tc-surface-muted)',
-  color: 'var(--tc-panel-fg)',
+  background: 'var(--app-surface-muted)',
+  color: 'var(--app-panel-fg)',
   fontFamily: 'inherit',
   overflow: 'hidden',
 };
@@ -405,7 +405,7 @@ const primaryBtnStyle: React.CSSProperties = {
 const dividerStyle: React.CSSProperties = {
   height: 1,
   margin: '6px 12px',
-  background: 'var(--tc-border)',
+  background: 'var(--app-border)',
 };
 
 const listHeaderStyle: React.CSSProperties = {
@@ -467,7 +467,7 @@ const sessionBtnStyle: React.CSSProperties = {
   alignItems: 'center',
   background: 'transparent',
   border: 'none',
-  color: 'var(--tc-panel-fg)',
+  color: 'var(--app-panel-fg)',
   padding: '9px 10px 9px 12px',
   textAlign: 'left',
   font: 'inherit',

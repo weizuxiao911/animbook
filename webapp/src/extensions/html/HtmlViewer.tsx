@@ -7,7 +7,7 @@
  *
  * 读写走 OpenSumi file service (IFileServiceClient):
  *   插件 → OpenSumi (OverlayFS) → onDidChangeFiles 钩子 → 宿主机 (opencode)
- * 不再直接使用 __WEBAPP_FS_API__ 的 PTY 通道.
+ * 不再直接使用 __APP_FS_API__ 的 PTY 通道.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -226,7 +226,7 @@ const STYLES = `
 .ab-html__toolbar {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 12px;
-  background: var(--tc-surface-muted, var(--vscode-editorWidget-background));
+  background: var(--app-surface-muted, var(--vscode-editorWidget-background));
   border-bottom: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(128,128,128,0.2)));
   font-size: 13px;
 }

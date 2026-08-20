@@ -145,7 +145,7 @@ export const QuestionCard: React.FC<{
       <div className="q__head" onClick={() => setCollapsed((p) => ({ ...p, 0: !p[0] }))}>
         <span className="q__badge">?</span>
         <span className="q__head-title">
-          问题 {questions.length} 已回答
+          问题 {questions.length}{answered ? ' 已回答' : ' 待回答'}
         </span>
         <span className="q__caret">{collapsed[0] ? '▸' : '▾'}</span>
       </div>

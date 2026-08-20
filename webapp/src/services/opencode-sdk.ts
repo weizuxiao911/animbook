@@ -3,12 +3,12 @@
  *
  * webapp 单一全局入口: baseUrl 走相对路径 `/api`, dev 由 webpack-dev-server
  * 代理 `/api/*` 到 127.0.0.1:24096, 生产由部署方自行配置反向代理.
- * 启动期同步创建 + 挂 window 全局 (__WEBAPP_OPENCODE__), 供内置 UI / vsix 走 SDK.
+ * 启动期同步创建 + 挂 window 全局 (__APP_OPENCODE__), 供内置 UI / vsix 走 SDK.
  *
  * 由用户提供一个运行中的 opencode 实例 (默认 127.0.0.1:24096) 即可使用.
  *
  * 暴露:
- *   - 同步创建 + window.__WEBAPP_OPENCODE__ 全局访问点
+ *   - 同步创建 + window.__APP_OPENCODE__ 全局访问点
  *   - getOpencodeClient() / isOpencodeReady() / waitForOpencodeReady() / disposeOpencodeClient()
  *
  * 错误策略:
@@ -39,8 +39,8 @@ export function getOpencodeClient(): OpencodeClient {
   if (_client && _baseUrl) return _client;
   _baseUrl = BASE_URL;
   _client = build(_baseUrl);
-  (window as any).__WEBAPP_OPENCODE__ = _client;
-  (window as any).__WEBAPP_OPENCODE_RUNTIME__ = {
+  (window as any).__APP_OPENCODE__ = _client;
+  (window as any).__APP_OPENCODE_RUNTIME__ = {
     baseUrl: _baseUrl,
     runtimeId: 'webapp-static',
     userId: 'webapp',
@@ -70,15 +70,15 @@ export async function waitForOpencodeReady(timeoutMs = 8000): Promise<void> {
 export function disposeOpencodeClient(): void {
   _client = null;
   _baseUrl = null;
-  delete (window as any).__WEBAPP_OPENCODE__;
-  delete (window as any).__WEBAPP_OPENCODE_RUNTIME__;
+  delete (window as any).__APP_OPENCODE__;
+  delete (window as any).__APP_OPENCODE_RUNTIME__;
 }
 
 /**
  * 安装 SDK 客户端 — 启动期调用一次:
  *   - 同步创建 SDK 实例 (baseUrl = '/api', dev 由 webpack-dev-server 代理到 127.0.0.1:24096)
- *   - 派发 webapp 内统一 ready 事件 (webapp:opencode-ready / webapp:sandbox-ready)
- *   - 暴露 window.__WEBAPP_OPENCODE__
+ *   - 派发 webapp 内统一 ready 事件 (app:opencode-ready / chat:sandbox-ready)
+ *   - 暴露 window.__APP_OPENCODE__
  */
 export function installOpencodeClient(): () => void {
   if (_installHandlersAttached) {
@@ -94,8 +94,8 @@ export function installOpencodeClient(): () => void {
   }
 
   // 派发 ready 事件 (兼容历史监听者: assistant/webview 等)
-  window.dispatchEvent(new CustomEvent('webapp:opencode-ready'));
-  window.dispatchEvent(new CustomEvent('webapp:sandbox-ready'));
+  window.dispatchEvent(new CustomEvent('app:opencode-ready'));
+  window.dispatchEvent(new CustomEvent('chat:sandbox-ready'));
 
   return () => {
     disposeOpencodeClient();

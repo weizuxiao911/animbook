@@ -9,7 +9,7 @@
  *   4. 滚动到哪页, 哪页自动加载显示, 位置一致
  *   5. 键盘/页码输入仍可跳转 (scrollIntoView)
  *
- * 读取走 FS API (__WEBAPP_FS_API__.readBinaryAbsolute).
+ * 读取走 FS API (__APP_FS_API__.readBinaryAbsolute).
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,7 +20,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { toAnnotMeta, runAnnotAction, type PdfAnnotMeta, type AnnotHandlers } from './annotations';
 import { AnnotationActions } from './AnnotationActions';
 
-const PDF_WORKER_CACHE_KEY = '__WEBAPP_PDF_WORKER_URL__';
+const PDF_WORKER_CACHE_KEY = '__APP_PDF_WORKER_URL__';
 function setupPdfWorker() {
   if (typeof window === 'undefined') return;
   if ((pdfjsLib as any).GlobalWorkerOptions.workerSrc) return;
@@ -73,7 +73,7 @@ function resolveHostPath(resource: any): string {
     if (s.startsWith('file://')) p = decodeURIComponent(s.slice('file://'.length));
     else p = s;
   }
-  const root = (window as any).__WEBAPP_FS_API__?.getWorkspaceDirSync?.();
+  const root = (window as any).__APP_FS_API__?.getWorkspaceDirSync?.();
   if (root) {
     const rootName = String(root).split('/').pop();
     if (rootName && p.startsWith(`/${rootName}/`)) {
@@ -269,7 +269,7 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
       setError('');
       setProgress({ loaded: 0, total: 0 });
       try {
-        const fsApi = (window as any).__WEBAPP_FS_API__;
+        const fsApi = (window as any).__APP_FS_API__;
         if (!fsApi?.readBinary) throw new Error('FS API not ready');
         if (!hostPath) throw new Error('无法解析文件路径');
         const bytes = await fsApi.readBinary(hostPath, {
@@ -483,19 +483,19 @@ export const PdfReaderView: React.FC<Props> = ({ resource }) => {
   useEffect(() => {
     // modal: 用全局事件打开 (由 App 层监听渲染模态框, 保持 PdfReaderView 独立)
     annotHandlersRef.current.modal = (title, content) => {
-      window.dispatchEvent(new CustomEvent('webapp:pdf-annot-modal', {
+      window.dispatchEvent(new CustomEvent('pdf:annot-modal', {
         detail: { title, content, source: hostPath },
       }));
     };
     // tab: 编辑区打开 untitled tab, 内容写入
     annotHandlersRef.current.tab = (title, content) => {
-      window.dispatchEvent(new CustomEvent('webapp:pdf-annot-tab', {
+      window.dispatchEvent(new CustomEvent('pdf:annot-tab', {
         detail: { title, content, source: hostPath },
       }));
     };
     // terminal: 打开/聚焦终端并执行命令
     annotHandlersRef.current.terminal = (command) => {
-      window.dispatchEvent(new CustomEvent('webapp:pdf-annot-terminal', {
+      window.dispatchEvent(new CustomEvent('pdf:annot-terminal', {
         detail: { command, source: hostPath },
       }));
     };
@@ -761,7 +761,7 @@ const STYLES = `
   flex-shrink: 0;
   display: flex; align-items: center; gap: 6px;
   padding: 6px 10px;
-  background: var(--tc-surface-muted, var(--vscode-editorWidget-background, #252526));
+  background: var(--app-surface-muted, var(--vscode-editorWidget-background, #252526));
   border-top: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(128,128,128,0.2)));
   color: var(--editor-foreground, var(--vscode-editor-foreground, #cccccc));
 }

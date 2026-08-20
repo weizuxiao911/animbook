@@ -10,7 +10,7 @@
  *   - providerLabels: { [providerID]: string } 覆盖 provider 标题 (如 'opencode' → 'OpenCode Zen')
  */
 
-const STORAGE_KEY = 'animbook.ai.modelPrefs.v1';
+const STORAGE_KEY = 'chat.modelPrefs.v1';
 
 export interface ModelPrefs {
   order: string[];           // modelID list
@@ -53,7 +53,7 @@ function save(prefs: ModelPrefs) {
   } catch {
     /* ignore */
   }
-  window.dispatchEvent(new CustomEvent('webapp:ai-modelPrefs-changed'));
+  window.dispatchEvent(new CustomEvent('chat:ai-modelPrefs-changed'));
 }
 
 let cache: ModelPrefs | null = null;

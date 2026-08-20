@@ -47,22 +47,10 @@ export function useChatSessions(ai: any, ready: boolean) {
     if (sid === sessionID) setSessionID('');
   }, [ai, sessionID]);
 
-  const onDeleteAllSessions = useCallback(async () => {
-    if (!ai) return 0;
-    const list = await ai.listSessions();
-    let n = 0;
-    for (const s of list) {
-      try { await ai.deleteSession(s.id); n++; } catch { /* skip */ }
-    }
-    setSessions([]);
-    setSessionID('');
-    return n;
-  }, [ai]);
-
   return {
     sessions, sessionID, setSessionID,
     sessionIDRef,
-    loadSessions, onNewSession, onSwitchSession, onDeleteSession, onDeleteAllSessions,
+    loadSessions, onNewSession, onSwitchSession, onDeleteSession,
     skipAutoLoad,
   };
 }

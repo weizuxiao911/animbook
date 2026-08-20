@@ -91,13 +91,13 @@ export const AnnotationActions: React.FC = () => {
       })();
     };
 
-    window.addEventListener('webapp:pdf-annot-modal', onModal);
-    window.addEventListener('webapp:pdf-annot-tab', onTab);
-    window.addEventListener('webapp:pdf-annot-terminal', onTerminal);
+    window.addEventListener('pdf:annot-modal', onModal);
+    window.addEventListener('pdf:annot-tab', onTab);
+    window.addEventListener('pdf:annot-terminal', onTerminal);
     return () => {
-      window.removeEventListener('webapp:pdf-annot-modal', onModal);
-      window.removeEventListener('webapp:pdf-annot-tab', onTab);
-      window.removeEventListener('webapp:pdf-annot-terminal', onTerminal);
+      window.removeEventListener('pdf:annot-modal', onModal);
+      window.removeEventListener('pdf:annot-tab', onTab);
+      window.removeEventListener('pdf:annot-terminal', onTerminal);
     };
   }, [terminalController, editorService]);
 

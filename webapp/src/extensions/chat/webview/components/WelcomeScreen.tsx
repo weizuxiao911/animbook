@@ -1,6 +1,6 @@
 import React from 'react';
 import { HIDDEN_AGENTS } from '../helpers';
-import { CHAT_BRAND, formatBrand } from '../../brand';
+import { getBrand, formatBrand } from '../../brand';
 
 export const WelcomeScreen: React.FC<{
   agents: any[];
@@ -23,9 +23,9 @@ export const WelcomeScreen: React.FC<{
     .slice(0, 4);
   return (
     <div className="chat__welcome">
-      <div className="chat__welcome-logo">{CHAT_BRAND.logoChar}</div>
-      <h1 className="chat__welcome-title">{formatBrand(CHAT_BRAND.greeting)}</h1>
-      <p className="chat__welcome-sub">{CHAT_BRAND.tagline}</p>
+      <div className="chat__welcome-logo">{getBrand().logoChar}</div>
+      <h1 className="chat__welcome-title">{formatBrand(getBrand().greeting)}</h1>
+      <p className="chat__welcome-sub">{getBrand().tagline}</p>
 
       <div className="chat__welcome-suggest">
         {suggestions.map((s, i) => (

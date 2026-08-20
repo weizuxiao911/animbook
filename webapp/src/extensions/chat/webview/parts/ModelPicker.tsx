@@ -60,8 +60,8 @@ export const ModelPicker: React.FC<Props> = ({
   // 本地隐藏偏好 (modelPrefs 变更后强制重渲染)
   useEffect(() => {
     const handler = () => forceTick((n) => n + 1);
-    window.addEventListener('webapp:ai-modelPrefs-changed', handler);
-    return () => window.removeEventListener('webapp:ai-modelPrefs-changed', handler);
+    window.addEventListener('chat:ai-modelPrefs-changed', handler);
+    return () => window.removeEventListener('chat:ai-modelPrefs-changed', handler);
   }, []);
 
   // ESC 关闭
@@ -439,7 +439,7 @@ export const ModelPicker: React.FC<Props> = ({
             <div className="chat__modal-body chat__modal-body--apikey">
               {error && <div className="chat__modal-error">{error}</div>}
               <p className="chat__modal-apikey-desc">
-                输入你的 {view.provider.name} ({view.provider.id}) API 密钥以连接账户，并在 animbook 中使用 {view.provider.name} ({view.provider.id}) 模型。
+                输入你的 {view.provider.name} ({view.provider.id}) API 密钥以连接账户，并在本应用中连接 {view.provider.name} ({view.provider.id}) 模型。
               </p>
               <label className="chat__modal-apikey-label">
                 {view.provider.name} ({view.provider.id}) API 密钥

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { marked } from 'marked';
 import { codeToHtml } from 'shiki';
 import markedShiki from 'marked-shiki';
@@ -45,7 +45,6 @@ function strip(text: string): string {
 export const Markdown: React.FC<{ content: string; streaming?: boolean; expand?: boolean }> = ({
   content,
   streaming,
-  expand,
 }) => {
   const [html, setHtml] = useState('');
   useEffect(() => {
@@ -56,72 +55,29 @@ export const Markdown: React.FC<{ content: string; streaming?: boolean; expand?:
     return () => { cancelled = true; };
   }, [content]);
 
-  const [expanded, setExpanded] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const [overflow, setOverflow] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const sync = () => setOverflow(el.scrollHeight > el.clientHeight + 1);
-    sync();
-    const obs = new ResizeObserver(sync);
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [html]);
-
-  const showExpand = !expand && overflow;
-
   return (
-    <div
-      className={`tc-md${streaming ? ' tc-md--streaming' : ''}${expanded || expand ? ' tc-md--expanded' : ''}`}
-    >
-      <div className="tc-md__body" ref={ref} dangerouslySetInnerHTML={{ __html: html }} />
-      {showExpand && (
-        <button type="button" className="tc-md__toggle" onClick={() => setExpanded((v) => !v)}>
-          {expanded ? '显示更少' : '显示更多'}
-        </button>
-      )}
-      <button
-        type="button"
-        className="tc-md__copy"
-        title="复制"
-        aria-label="复制"
-        onClick={() => {
-          navigator.clipboard.writeText(content || '').catch(() => { /* ignore */ });
-        }}
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2" />
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-        </svg>
-      </button>
+    <div className={`chat-md${streaming ? ' chat-md--streaming' : ''}`}>
+      <div className="chat-md__body" dangerouslySetInnerHTML={{ __html: html }} />
       <style>{`
-        .tc-md { position: relative; }
-        .tc-md__body {
-          display: -webkit-box;
-          -webkit-box-orient: vertical;
-          -webkit-line-clamp: 3;
-          line-clamp: 3;
-          overflow: hidden;
+        .chat-md { position: relative; }
+        .chat-md__body {
           font-size: 13px;
           line-height: 1.6;
           color: var(--editor-foreground, var(--vscode-editor-foreground));
           word-break: break-word;
         }
-        .tc-md--expanded .tc-md__body { display: block; }
-        .tc-md--streaming .tc-md__body { display: block; }
-        .tc-md__body p, .tc-md__body blockquote, .tc-md__body ul, .tc-md__body ol,
-        .tc-md__body dl, .tc-md__body table, .tc-md__body pre { margin-bottom: 0.75rem; }
-        .tc-md__body ul, .tc-md__body ol { padding-left: 1.4rem; margin-bottom: 0.5rem; }
-        .tc-md__body ol > li { margin-bottom: 0.35rem; }
-        .tc-md__body li ul, .tc-md__body li ol { margin-top: 0.2rem; margin-bottom: 0; }
-        .tc-md__body h1, .tc-md__body h2, .tc-md__body h3, .tc-md__body h4,
-        .tc-md__body h5, .tc-md__body h6 {
+        .chat-md__body p, .chat-md__body blockquote, .chat-md__body ul, .chat-md__body ol,
+        .chat-md__body dl, .chat-md__body table, .chat-md__body pre { margin-bottom: 0.75rem; }
+        .chat-md__body ul, .chat-md__body ol { padding-left: 1.4rem; margin-bottom: 0.5rem; }
+        .chat-md__body ol > li { margin-bottom: 0.35rem; }
+        .chat-md__body li ul, .chat-md__body li ol { margin-top: 0.2rem; margin-bottom: 0; }
+        .chat-md__body h1, .chat-md__body h2, .chat-md__body h3, .chat-md__body h4,
+        .chat-md__body h5, .chat-md__body h6 {
           font-size: 1em; font-weight: 600; margin-bottom: 0.5rem;
           color: var(--editor-foreground, var(--vscode-editor-foreground)) !important;
         }
-        .tc-md__body > *:last-child { margin-bottom: 0; }
-        .tc-md__body pre {
+        .chat-md__body > *:last-child { margin-bottom: 0; }
+        .chat-md__body pre {
           --shiki-dark-bg: var(--editor-background, var(--vscode-editor-background)) !important;
           background: var(--editor-background, var(--vscode-editor-background)) !important;
           border: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(255,255,255,0.06)));
@@ -133,45 +89,27 @@ export const Markdown: React.FC<{ content: string; streaming?: boolean; expand?:
           word-break: break-word;
           overflow-x: auto;
         }
-        .tc-md__body code { font-weight: 500; }
-        .tc-md__body :not(pre) > code {
+        .chat-md__body code { font-weight: 500; }
+        .chat-md__body :not(pre) > code {
           background: var(--textCodeBlock-background, rgba(255,255,255,0.07));
           border-radius: 4px;
           padding: 1px 5px;
           font-size: 0.92em;
         }
-        .tc-md__body table { border-collapse: collapse; width: 100%; }
-        .tc-md__body th, .tc-md__body td {
+        .chat-md__body table { border-collapse: collapse; width: 100%; }
+        .chat-md__body th, .chat-md__body td {
           border: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(255,255,255,0.08)));
           padding: 0.4rem 0.6rem;
           text-align: left;
         }
-        .tc-md__body th { border-bottom: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(255,255,255,0.12))); font-weight: 600; }
-        .tc-md__body blockquote {
+        .chat-md__body th { border-bottom: 1px solid var(--panel-border, var(--vscode-panel-border, rgba(255,255,255,0.12))); font-weight: 600; }
+        .chat-md__body blockquote {
           border-left: 3px solid var(--panel-border, var(--vscode-panel-border, rgba(255,255,255,0.15)));
           padding-left: 0.75rem;
           color: var(--descriptionForeground, var(--vscode-descriptionForeground));
         }
-        .tc-md__body a { color: var(--textLink-foreground, var(--vscode-textLink-foreground, var(--button-background))); text-decoration: none; }
-        .tc-md__body a:hover { text-decoration: underline; }
-        .tc-md__toggle {
-          flex: 0 0 auto;
-          padding: 2px 0;
-          font-size: 11px;
-          color: var(--descriptionForeground, var(--vscode-descriptionForeground));
-          background: transparent; border: none; cursor: pointer;
-        }
-        .tc-md__toggle:hover { color: var(--editor-foreground, var(--vscode-editor-foreground)); }
-        .tc-md__copy {
-          position: absolute; top: 0; right: 0;
-          width: 22px; height: 22px;
-          display: none; align-items: center; justify-content: center;
-          background: transparent; border: none; border-radius: 5px;
-          color: var(--descriptionForeground, var(--vscode-descriptionForeground)); cursor: pointer;
-          padding: 0;
-        }
-        .tc-md:hover .tc-md__copy { display: inline-flex; }
-        .tc-md__copy:hover { background: var(--list-hoverBackground, rgba(255,255,255,0.08)); color: var(--editor-foreground, var(--vscode-editor-foreground)); }
+        .chat-md__body a { color: var(--textLink-foreground, var(--vscode-textLink-foreground, var(--button-background))); text-decoration: none; }
+        .chat-md__body a:hover { text-decoration: underline; }
       `}</style>
     </div>
   );

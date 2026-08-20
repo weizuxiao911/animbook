@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
-export const ReasoningView: React.FC<{ part: any; streaming?: boolean }> = ({ part, streaming }) => {
+export const ReasoningView: React.FC<{ part: any; streaming?: boolean; done?: boolean }> = ({ part, done }) => {
   const text = String(part?.text || '').trim();
+  // 默认展开; 用户可手动折叠; 对话完成后自动折叠
   const [open, setOpen] = useState(true);
-
-  useEffect(() => {
-    if (streaming) setOpen(true);
-  }, [streaming]);
+  useEffect(() => { if (done) setOpen(false); }, [done]);
 
   if (!text) return null;
 

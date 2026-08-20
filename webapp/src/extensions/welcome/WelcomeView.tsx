@@ -25,7 +25,7 @@ export const WelcomeView: React.FC<{ resource?: any }> = () => {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !files.length) return;
-    const fsApi = (window as any).__WEBAPP_FS_API__;
+    const fsApi = (window as any).__APP_FS_API__;
     if (!fsApi?.write) {
       alert('沙箱文件系统未就绪');
       return;
@@ -98,7 +98,7 @@ const STYLES = `
 .ab-welcome {
   width: 100%; height: 100%;
   display: flex; align-items: center; justify-content: center;
-  background: var(--tc-panel-bg);
+  background: var(--app-panel-bg);
   color: var(--editor-foreground, var(--vscode-editor-foreground));
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
   overflow: auto;

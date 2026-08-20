@@ -108,16 +108,16 @@
 
 /* ============= 主题变量 (跟随 OpenSumi/VSCode 主题, 仅做兜底) ============= */
 :root {
-  --tc-panel-bg: var(--editor-background, var(--vscode-editor-background, #181818));
-  --tc-panel-fg: var(--editor-foreground, var(--vscode-editor-foreground, #e5e7eb));
-  --tc-border: var(--panel-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.2)));
-  --tc-scrollbar: var(--scrollbarSlider-background, rgba(128, 128, 128, 0.3));
+  --app-panel-bg: var(--editor-background, var(--vscode-editor-background, #181818));
+  --app-panel-fg: var(--editor-foreground, var(--vscode-editor-foreground, #e5e7eb));
+  --app-border: var(--panel-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.2)));
+  --app-scrollbar: var(--scrollbarSlider-background, rgba(128, 128, 128, 0.3));
 
   /* card 式分层: 明暗主题均不用灰色, 面板用编辑器底色 + 极轻微偏移 */
-  --tc-surface-base: var(--editor-background, #181818);
-  --tc-surface-muted: color-mix(in srgb, var(--tc-surface-base) 97%, #000);
-  --tc-surface-raised: color-mix(in srgb, var(--tc-surface-base) 97%, #fff);
-  --tc-surface-edge: color-mix(in srgb, var(--tc-surface-base) 94%, #000);
+  --app-surface-base: var(--editor-background, #181818);
+  --app-surface-muted: color-mix(in srgb, var(--app-surface-base) 97%, #000);
+  --app-surface-raised: color-mix(in srgb, var(--app-surface-base) 97%, #fff);
+  --app-surface-edge: color-mix(in srgb, var(--app-surface-base) 94%, #000);
 }
 
 /* 亮色主题: 主按钮强制蓝色 (背景白时按钮变透明不可见) — 只作用于亮色主题 */
@@ -184,13 +184,13 @@ body.design-light,
 body.vs-light,
 body.vs,
 .codeblitz-root.codeblitz-light {
-  --tc-panel-bg: #ffffff;
-  --tc-panel-fg: #1f2328;
-  --tc-border: rgba(0, 0, 0, 0.1);
-  --tc-surface-base: #ffffff;
-  --tc-surface-muted: #ffffff;
-  --tc-surface-raised: #ffffff;
-  --tc-surface-edge: #ffffff;
+  --app-panel-bg: #ffffff;
+  --app-panel-fg: #1f2328;
+  --app-border: rgba(0, 0, 0, 0.1);
+  --app-surface-base: #ffffff;
+  --app-surface-muted: #ffffff;
+  --app-surface-raised: #ffffff;
+  --app-surface-edge: #ffffff;
   --button-background: #ffffff;
   --button-foreground: #1f2328;
   --button-hoverBackground: #f3f4f6;
@@ -219,15 +219,15 @@ body.vs,
 .kt_editor_group____46Ak,
 .kt_editor_main_wrapper___x1f2H,
 .kt_editor_main_wrapper___jVI2r {
-  background: var(--tc-panel-bg) !important;
+  background: var(--app-panel-bg) !important;
   width: 100%;
 }
 
 .codeblitz-root .box-panel___wfGj8,
 .codeblitz-root .split-panel___M3qwE,
-.tc-right-panel,
-.tc-ai {
-  background: var(--tc-panel-bg) !important;
+.-app-right-panel,
+.-app-ai {
+  background: var(--app-panel-bg) !important;
 }
 
 /* 左侧栏容器 / 右侧面板容器 / 底部面板容器, 背景统一 */
@@ -237,19 +237,19 @@ body.vs,
 [class*="design_left_slot"],
 [class*="design_right_slot"],
 [class*="design_bottom_slot"],
-.tc-right-panel,
-.tc-right-panel__body,
-.tc-right-panel .kt-tab-panel,
-.tc-right-panel [class*="view_container___"],
-.tc-right-panel [class*="panel_wrap___"] {
-  background: var(--tc-panel-bg) !important;
+.-app-right-panel,
+.-app-right-panel__body,
+.-app-right-panel .kt-tab-panel,
+.-app-right-panel [class*="view_container___"],
+.-app-right-panel [class*="panel_wrap___"] {
+  background: var(--app-panel-bg) !important;
 }
 
 /* 编辑器顶部 tab 栏 ("欢迎使用" 那一行) 背景统一 */
 [class*="editorGroupHeader___"],
 [class*="editor-tabs-container"],
 [class*="tab_bar___"] {
-  background: var(--tc-panel-bg) !important;
+  background: var(--app-panel-bg) !important;
   border: none !important;
   border-radius: 0 !important;
 }
@@ -307,12 +307,12 @@ body.vs,
 [class*="bottom_bar_container___"],
 .tab_bar_container___,
 .tab_bar___oRZy7 {
-  background: var(--tc-panel-bg) !important;
+  background: var(--app-panel-bg) !important;
 }
 
 /* 顶栏背景统一 (无边线) */
-.tc-topbar {
-  background: var(--tc-panel-bg) !important;
+.-app-topbar {
+  background: var(--app-panel-bg) !important;
 }
 
 /* ============= 面板间分隔线 (card 式分层) =============
@@ -323,7 +323,7 @@ body.vs,
 /* 主编辑区: 四边留 6px 外边距, 让它成为一个独立 card 块 */
 [class*="main_slot___"],
 [class*="design_main_slot"] {
-  background: var(--tc-surface-muted) !important;
+  background: var(--app-surface-muted) !important;
   padding: 6px !important;
   box-sizing: border-box;
 }
@@ -337,7 +337,7 @@ body.vs,
 [class*="design_main_slot"] .kt-workbench-editor,
 [class*="main_slot___"] .kt_editor_components___cmFFV,
 [class*="design_main_slot"] .kt_editor_components___cmFFV {
-  background: var(--tc-surface-base) !important;
+  background: var(--app-surface-base) !important;
   border-radius: 8px;
   overflow: hidden;
   height: 100%;
@@ -351,18 +351,18 @@ body.vs,
 [class*="design_right_slot"],
 [class*="bottom_slot___"],
 [class*="design_bottom_slot"] {
-  background: var(--tc-surface-muted) !important;
+  background: var(--app-surface-muted) !important;
   border: none !important;
   box-shadow: none !important;
 }
 
 /* 顶栏: 与侧栏同档 */
-.tc-topbar,
+.-app-topbar,
 [class*="top_slot___"],
 [class*="design_top_slot"],
 [class*="top_slot"],
 [class*="design_top"] {
-  background: var(--tc-surface-muted) !important;
+  background: var(--app-surface-muted) !important;
   border: none !important;
 }
 
@@ -370,14 +370,14 @@ body.vs,
    给第一个 wrapper (top slot, 28px) 加 muted 背景, 与 left/right 一致 */
 .box-panel___wfGj8 > .wrapper___nRQsx:first-child,
 .codeblitz-root .wrapper___nRQsx:first-child {
-  background: var(--tc-surface-muted) !important;
+  background: var(--app-surface-muted) !important;
 }
 
 /* 标签栏 (tab bar) 也跟侧栏同色, 与编辑区自然分层 */
 [class*="editor-tabs-container"],
 [class*="editorGroupHeader___"],
 [class*="tab_bar___"] {
-  background: var(--tc-surface-muted) !important;
+  background: var(--app-surface-muted) !important;
 }
 
 /* resize handle: 透明命中区, hover/active 给一条细高亮 */
@@ -400,17 +400,17 @@ body.vs,
   display: none !important;
 }
 
-/* 右侧 AI 面板内嵌: 让 tc-ai 自身继承 card 色, 不再强制覆盖 */
-.tc-right-panel,
-.tc-right-panel__body,
-.tc-right-panel .kt-tab-panel,
-.tc-right-panel [class*="view_container___"],
-.tc-right-panel [class*="panel_wrap___"],
+/* 右侧 AI 面板内嵌: 让 -app-ai 自身继承 card 色, 不再强制覆盖 */
+.-app-right-panel,
+.-app-right-panel__body,
+.-app-right-panel .kt-tab-panel,
+.-app-right-panel [class*="view_container___"],
+.-app-right-panel [class*="panel_wrap___"],
 /* split-panel 内层容器 (sessions-default / chat-panel / explorer) 跟 left slot 同色 */
 #sessions-default,
 #chat-panel,
-.tc-ai {
-  background: var(--tc-surface-muted) !important;
+.-app-ai {
+  background: var(--app-surface-muted) !important;
 }
 
 /* ============= right slot 折叠 =============
@@ -426,7 +426,7 @@ body.vs,
 
 /* ============= 右侧 AI 面板 ============= */
 /* 隐藏 OpenSumi view-container 顶部标题条 ("AI 助手" h1), AiPanel 自带顶栏 */
-.tc-right-panel [class*="view_container___"] > [class*="titlebar___"] {
+.-app-right-panel [class*="view_container___"] > [class*="titlebar___"] {
   display: none !important;
 }
 
@@ -434,21 +434,21 @@ body.vs,
 .xterm,
 .xterm-viewport,
 .xterm-screen {
-  background-color: var(--tc-panel-bg) !important;
+  background-color: var(--app-panel-bg) !important;
 }
 
 /* 终端滚动条: macOS 原生滚动条在深色面板上是白色/浅色,
    滚动时明显突兀, 统一为深色细滚动条 */
 .xterm-viewport {
   scrollbar-width: thin;
-  scrollbar-color: var(--tc-scrollbar) transparent;
+  scrollbar-color: var(--app-scrollbar) transparent;
 }
 .xterm-viewport::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 .xterm-viewport::-webkit-scrollbar-thumb {
-  background: var(--tc-scrollbar);
+  background: var(--app-scrollbar);
   border-radius: 4px;
 }
 .xterm-viewport::-webkit-scrollbar-track {
@@ -461,8 +461,8 @@ body.vs,
    整个 IDE 布局上移 36px — 顶栏被推出视口 + 底部空白。
    用 height:0 + overflow:hidden 消除占位 (不能 display:none — fixed
    子视图在 display:none 祖先内同样被隐藏, 账号弹窗/登录 overlay 会消失) */
-.codeblitz-root > .resize-wrapper:has(.tc-login-root),
-.codeblitz-root > .resize-wrapper:has(.tc-user-popover) {
+.codeblitz-root > .resize-wrapper:has(.-app-login-root),
+.codeblitz-root > .resize-wrapper:has(.-app-user-popover) {
   height: 0 !important;
   overflow: hidden !important;
 }
@@ -493,8 +493,8 @@ div[data-viewlet-id="sessions-default"] [class*="titlebar"] {
 
 /* loading / toast 槽位容器: fixed overlay 自管显隐, 容器占位会撑高 root
    (2430=3×810) 触发滚动 → 底部空白。与 login/user 同样 height:0 */
-.codeblitz-root > .resize-wrapper:has(.tc-loading-root),
-.codeblitz-root > .resize-wrapper:has(.tc-toast-root) {
+.codeblitz-root > .resize-wrapper:has(.-app-loading-root),
+.codeblitz-root > .resize-wrapper:has(.-app-toast-root) {
   height: 0 !important;
   overflow: hidden !important;
 }

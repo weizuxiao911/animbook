@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 
 function safeStringify(v: any): string {
   if (v == null) return '';
@@ -36,13 +36,15 @@ function summarize(tool: string, input: any, output: any): string {
 }
 
 /** OpenCode 风格工具调用卡片: [Shell] 图标 + 命令 + 展开箭头 + 折叠输出 */
-export const ToolView: React.FC<{ part: any }> = ({ part }) => {
+export const ToolView: React.FC<{ part: any; done?: boolean }> = ({ part, done }) => {
   const tool: string = part?.tool || 'tool';
   const status: string = part?.state?.status || 'pending';
   const input = part?.state?.input;
   const output = part?.state?.output;
   const error = part?.state?.error;
   const [open, setOpen] = useState(true);
+  // 对话完成后自动折叠
+  useEffect(() => { if (done) setOpen(false); }, [done]);
 
   const inStr = useMemo(() => safeStringify(input), [input]);
   const outStr = useMemo(() => safeStringify(output), [output]);

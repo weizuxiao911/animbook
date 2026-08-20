@@ -190,11 +190,11 @@ export async function fsFind(idePath: string, pattern = '*'): Promise<string[]> 
 }
 
 /**
- * installFsApi — 挂 window.__WEBAPP_FS_API__ (供非 OpenSumi 模块: PDF / 欢迎页等).
+ * installFsApi — 挂 window.__APP_FS_API__ (供非 OpenSumi 模块: PDF / 欢迎页等).
  * 在 index.tsx 创建 SDK 之后, App 渲染之前调用.
  */
 export function installFsApi(): void {
-  (window as any).__WEBAPP_FS_API__ = {
+  (window as any).__APP_FS_API__ = {
     isReady: () => !!getOpencodeClient() && !!getWorkspaceDirSync(),
     getWorkspaceDir,
     getWorkspaceDirSync,
@@ -211,5 +211,5 @@ export function installFsApi(): void {
     find: fsFind,
     runShell,
   };
-  window.dispatchEvent(new CustomEvent('webapp:fs-api-ready'));
+  window.dispatchEvent(new CustomEvent('app:fs-api-ready'));
 }
