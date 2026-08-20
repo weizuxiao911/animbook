@@ -5,7 +5,7 @@ const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
 const Dotenv = require('dotenv-webpack');
 
 module.exports = () => ({
-  entry: path.resolve(__dirname, 'src/index.tsx'),
+  entry: path.resolve(__dirname, 'opensumi/src/index.tsx'),
   output: {
     filename: '[name].[contenthash].js',
     path: path.resolve(__dirname, 'dist'),
@@ -19,6 +19,21 @@ module.exports = () => ({
     buildDependencies: {
       config: [__filename],
     },
+  },
+  watchOptions: {
+    // 排除输出/缓存/运行期数据目录, 避免删除/重建目录时 watcher ENOENT 风暴杀掉 webpack
+    ignored: [
+      '**/node_modules/**',
+      '**/.webpack-cache/**',
+      '**/dist/**',
+      '**/registry/dist/**',
+      '**/registry/vsix/**',
+      '**/assistant/workspace/**',
+      '**/.playwright-screenshots/**',
+      '**/.playwright-mcp/**',
+    ],
+    poll: false,
+    aggregateTimeout: 200,
   },
   optimization: {
     // 把 monaco-editor 这种超大模块拆到独立 chunk, 避免单个 bundle 过大
@@ -56,6 +71,10 @@ module.exports = () => ({
   mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.json'],
+    alias: {
+      '@': path.resolve(__dirname, 'opensumi/src'),
+      '@/': path.resolve(__dirname, 'opensumi/src') + path.sep,
+    },
     fallback: {
       path: require.resolve('path-browserify'),
       fs: false,
@@ -158,7 +177,7 @@ module.exports = () => ({
   },
   plugins: [
     new HtmlWebpackPlugin({
-      template: path.resolve(__dirname, 'src/index.html'),
+      template: path.resolve(__dirname, 'opensumi/src/index.html'),
     }),
     new Dotenv({
       path: path.resolve(__dirname, `.env.${process.env.DEPLOY_ENV || 'development'}`),
@@ -191,11 +210,18 @@ module.exports = () => ({
     },
     proxy: [
       {
-        context: ['/ai'],
+        context: ['/api'],
         target: 'http://127.0.0.1:24096',
-        pathRewrite: { '^/ai': '' },
+        pathRewrite: { '^/api': '' },
         changeOrigin: true,
         ws: true,
+      },
+      {
+        context: ['/extensions'],
+        target: 'https://127.0.0.1:13000',
+        pathRewrite: { '^/extensions': '' },
+        changeOrigin: true,
+        secure: false,
       },
     ],
   },
