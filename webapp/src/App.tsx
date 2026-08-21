@@ -38,6 +38,7 @@ export const App: React.FC = () => {
 
   return (
     <AppRenderer
+      key={workspaceDir}
       appConfig={{
         workspaceDir,
         ...buildSlots(),

@@ -43,15 +43,15 @@ export const Chat: React.FC = () => {
   const layoutService = useInjectable<IMainLayoutService>(IMainLayoutService);
   useEffect(() => {}, []);
 
-  // 挂载后设置 right 面板默认宽度 498 (getTabbarHandler 需在 tabbar 渲染后, 带重试)
+  // 挂载后设置 right 面板默认宽度 458 (getTabbarHandler 需在 tabbar 渲染后, 带重试)
   useEffect(() => {
     let tries = 0;
     const apply = () => {
       const handler = layoutService.getTabbarHandler('chat-panel');
       if (handler) {
-        // setSize 内部会 +barSize (tabbar 宽度), 这里减掉让实际宽度 = 498
+        // setSize 内部会 +barSize (tabbar 宽度), 这里减掉让实际宽度 = 458
         const bar = layoutService.getTabbarService(SlotLocation.right)?.getBarSize?.() ?? 0;
-        handler.setSize(498 - bar);
+        handler.setSize(458 - bar);
         return true;
       }
       return false;

@@ -19,7 +19,9 @@ export function buildSlots(): Slots {
         modules: []
       },
       [SlotLocation.left]: {
-        modules: [],
+        modules: [
+          '@opensumi/ide-explorer',
+        ],
       },
       [SlotLocation.right]: {
         modules: [],

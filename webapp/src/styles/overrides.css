@@ -332,13 +332,13 @@ body.vs,
 [class*="design_main_slot"] [class*="resize-handle"] {
   margin: 0 !important;
 }
-/* main slot 内部的 workbench editor wrapper: 圆角 + 基础色 + 裁切 */
+/* main slot 内部的 workbench editor wrapper: 直角 + 基础色 + 裁切 */
 [class*="main_slot___"] .kt-workbench-editor,
 [class*="design_main_slot"] .kt-workbench-editor,
 [class*="main_slot___"] .kt_editor_components___cmFFV,
 [class*="design_main_slot"] .kt_editor_components___cmFFV {
   background: var(--app-surface-base) !important;
-  border-radius: 8px;
+  border-radius: 0;
   overflow: hidden;
   height: 100%;
   box-shadow: 0 1px 2px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.03);
@@ -346,14 +346,78 @@ body.vs,
 
 /* 左右侧栏 / 底部面板: 略深一档 (card 凹陷感) */
 [class*="left_slot___"],
-[class*="design_left_slot"],
 [class*="right_slot___"],
-[class*="design_right_slot"],
 [class*="bottom_slot___"],
+[class*="design_left_slot"],
+[class*="design_right_slot"],
 [class*="design_bottom_slot"] {
   background: var(--app-surface-muted) !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+/* left 面板整体凸起: 磨砂玻璃 + 右侧/底部高光 + 浮起投影 (与 right 对称, 方向朝右)
+   投影 blur 半径收紧 + 不透明度提高, 让左侧暗带可见 (与 right 视觉一致)
+   内部内容容器设 overflow:visible, 让外 box-shadow 不被 split-panel 的 overflow 裁掉 */
+[class*="left_slot___"],
+[class*="design_left_slot"] {
+  position: relative;
+  background: color-mix(in srgb, var(--app-panel-bg) 84%, transparent) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
+  border-radius: 0;
+  overflow: visible !important;
+  box-shadow:
+    1px 0 0 color-mix(in srgb, #fff 8%, transparent) inset,
+    0 1px 0 color-mix(in srgb, #fff 6%, transparent) inset,
+    0 0 0 color-mix(in srgb, #fff 5%, transparent) inset,
+    8px 0 18px color-mix(in srgb, #000 36%, transparent),
+    0 0 16px color-mix(in srgb, #000 26%, transparent) !important;
+}
+[class*="left_slot___"] .kt-tab-panel,
+[class*="design_left_slot"] .kt-tab-panel {
+  overflow: visible !important;
+}
+.vs [class*="left_slot___"],
+.vs [class*="design_left_slot"] {
+  box-shadow:
+    1px 0 0 color-mix(in srgb, #fff 30%, transparent) inset,
+    0 1px 0 color-mix(in srgb, #fff 20%, transparent) inset,
+    0 0 0 color-mix(in srgb, #fff 12%, transparent) inset,
+    8px 0 16px color-mix(in srgb, #000 18%, transparent),
+    0 0 14px color-mix(in srgb, #000 12%, transparent) !important;
+}
+
+/* right 面板整体凸起: 磨砂玻璃 + 左侧/底部高光 + 浮起投影 (无 border 线, 直角)
+   必须放在上面的统一 background/box-shadow 规则之后, 用 !important 覆盖
+   内部内容容器设 overflow:visible, 让外 box-shadow 不被 split-panel 的 overflow 裁掉 */
+[class*="right_slot___"],
+[class*="design_right_slot"] {
+  position: relative;
+  background: color-mix(in srgb, var(--app-panel-bg) 84%, transparent) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
+  border-radius: 0;
+  overflow: visible !important;
+  box-shadow:
+    -1px 0 0 color-mix(in srgb, #fff 8%, transparent) inset,
+    0 1px 0 color-mix(in srgb, #fff 6%, transparent) inset,
+    0 0 0 color-mix(in srgb, #fff 5%, transparent) inset,
+    -6px 0 20px color-mix(in srgb, #000 26%, transparent),
+    0 0 18px color-mix(in srgb, #000 18%, transparent) !important;
+}
+[class*="right_slot___"] .kt-tab-panel,
+[class*="design_right_slot"] .kt-tab-panel {
+  overflow: visible !important;
+}
+.vs [class*="right_slot___"],
+.vs [class*="design_right_slot"] {
+  box-shadow:
+    -1px 0 0 color-mix(in srgb, #fff 30%, transparent) inset,
+    0 1px 0 color-mix(in srgb, #fff 20%, transparent) inset,
+    0 0 0 color-mix(in srgb, #fff 12%, transparent) inset,
+    -6px 0 16px color-mix(in srgb, #000 12%, transparent),
+    0 0 14px color-mix(in srgb, #000 8%, transparent) !important;
 }
 
 /* 顶栏: 与侧栏同档, 高度加大 (64px) */
@@ -377,10 +441,26 @@ body.vs,
 }
 
 /* 标签栏 (tab bar) 也跟侧栏同色, 与编辑区自然分层 */
-[class*="editor-tabs-container"],
+/* main 顶栏(编辑器 tab 栏) 与底部面板: 与主区内容分隔 (底/顶投影), 独立卡片感 */
 [class*="editorGroupHeader___"],
-[class*="tab_bar___"] {
+[class*="tab_bar___"]:not([class*="tab_bar_container___"]) {
   background: var(--app-surface-muted) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, #000 18%, transparent) inset, 0 4px 8px color-mix(in srgb, #000 14%, transparent) !important;
+}
+.vs [class*="editorGroupHeader___"],
+.vs [class*="tab_bar___"]:not([class*="tab_bar_container___"]) {
+  background: var(--app-surface-muted) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, #fff 30%, transparent) inset, 0 4px 8px color-mix(in srgb, #000 10%, transparent) !important;
+}
+[class*="bottom_slot___"],
+[class*="design_bottom_slot"] {
+  background: var(--app-surface-muted) !important;
+  box-shadow: 0 -1px 0 color-mix(in srgb, #000 18%, transparent) inset, 0 -4px 8px color-mix(in srgb, #000 14%, transparent) !important;
+}
+.vs [class*="bottom_slot___"],
+.vs [class*="design_bottom_slot"] {
+  background: var(--app-surface-muted) !important;
+  box-shadow: 0 -1px 0 color-mix(in srgb, #fff 30%, transparent) inset, 0 -4px 8px color-mix(in srgb, #000 10%, transparent) !important;
 }
 
 /* resize handle: 透明命中区, hover/active 给一条细高亮 */

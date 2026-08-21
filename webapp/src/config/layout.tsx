@@ -26,7 +26,7 @@ export function LayoutComponent(): React.ReactElement {
           <SlotRenderer
             slot={SlotLocation.left}
             isTabbar
-            defaultSize={286}
+            defaultSize={268}
             minResize={204}
             minSize={49}
           />
@@ -34,7 +34,7 @@ export function LayoutComponent(): React.ReactElement {
             <SlotRenderer flex={2} flexGrow={1} minResize={200} slot={SlotLocation.main} />
             <SlotRenderer flex={1} minResize={160} slot={SlotLocation.bottom} isTabbar defaultSize={200} />
           </SplitPanel>
-          <SlotRenderer slot={SlotLocation.right} isTabbar defaultSize={438} minResize={320} minSize={49} />
+          <SlotRenderer slot={SlotLocation.right} isTabbar defaultSize={458} minResize={320} minSize={49} />
         </SplitPanel>
       </BoxPanel>
     </React.Fragment>
