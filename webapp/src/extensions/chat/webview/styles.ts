@@ -4,6 +4,12 @@
  */
 
 export const styles = `
+/* 霓虹跑圈: 注册角度变量, 供 conic-gradient 光点绕边框旋转 */
+@property --ab-neon-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
 .chat {
   /* ========== 主题色板: 优先使用 IDE/VSCode 主题变量, 暗色兜底 ========== */
   /* 与 left slot 保持一致 (var(--app-surface-muted)) */
@@ -47,6 +53,8 @@ export const styles = `
   --ai-pop-shadow: 0 24px 60px color-mix(in srgb, #000 55%, transparent), 0 0 0 1px var(--ai-glass-edge) inset;
   /* 抛光球面高光 (圆钮/图标) */
   --ai-chrome: radial-gradient(circle at 32% 24%, var(--ai-metal-hi) 0%, var(--ai-metal-mid) 40%, var(--ai-metal-lo) 92%);
+  /* 霓虹灯强调色: 基于 accent 但强制饱和可见 (accent 可能是半透明白, 直接发光会不可见) */
+  --ai-neon: color-mix(in srgb, var(--ai-accent) 55%, #7c3aed);
 
   display: flex; flex-direction: column; height: 100%;
   background: var(--ai-bg);
@@ -56,30 +64,32 @@ export const styles = `
   overflow: hidden;
 }
 
-/* Topbar — 柔和凸起 (细金属渐变 + 顶部高光 + 底部投影) */
+/* Topbar — 磨砂玻璃 + 立体凸起 (悬浮玻璃条: 亮高光顶 + 深投影底) */
 .chat__topbar {
   height: 36px;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 12px;
   background: linear-gradient(180deg,
-    color-mix(in srgb, var(--ai-fg) 12%, var(--ai-bg-elev)) 0%,
-    var(--ai-bg-elev) 60%,
-    color-mix(in srgb, var(--ai-fg) 3%, var(--ai-bg-elev)) 100%);
+    color-mix(in srgb, #ffffff 8%, var(--ai-glass-bg)) 0%,
+    var(--ai-glass-bg) 60%,
+    color-mix(in srgb, #000 4%, var(--ai-glass-bg)) 100%);
+  -webkit-backdrop-filter: var(--ai-glass-blur);
+  backdrop-filter: var(--ai-glass-blur);
   box-shadow:
-    0 1px 0 var(--ai-metal-edge) inset,
-    0 2px 6px color-mix(in srgb, #000 18%, transparent);
+    0 1px 0 color-mix(in srgb, #fff 16%, transparent) inset,
+    0 3px 10px color-mix(in srgb, #000 30%, transparent);
   flex-shrink: 0;
 }
 .chat__brand { display: flex; align-items: center; gap: 8px; }
 .chat__logo {
   width: 22px; height: 22px; border-radius: 7px;
-  background: var(--ai-chrome);
-  color: var(--ai-fg); font-weight: 700; font-size: 12px;
+  background: var(--ai-metal-accent);
+  color: var(--ai-accent-fg); font-weight: 700; font-size: 12px;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 1px 0 var(--ai-metal-edge) inset, 0 2px 6px color-mix(in srgb, #000 35%, transparent);
   text-shadow: 0 1px 1px color-mix(in srgb, #000 30%, transparent);
 }
-.chat__brand-name { font-weight: 600; font-size: 13px; text-shadow: 0 1px 0 color-mix(in srgb, #fff 8%, transparent); }
+.chat__brand-name { font-weight: 600; font-size: 13px; }
 .chat__top-actions { display: flex; align-items: center; gap: 2px; }
 .chat__icon-btn {
   width: 28px; height: 28px;
@@ -98,7 +108,7 @@ export const styles = `
   margin: 8px 8px 0;
   padding: 0;
   background: var(--ai-input-bg);
-  border: 1px solid var(--ai-divider);
+  border: none;
   border-radius: 10px;
   flex-shrink: 0;
   overflow: hidden;
@@ -206,7 +216,7 @@ export const styles = `
   display: inline-flex; align-items: center; gap: 8px;
   padding: 6px 10px;
   background: var(--ai-hover);
-  border: 1px solid var(--ai-border);
+  border: none;
   border-radius: 8px;
   color: var(--ai-fg);
   text-decoration: none;
@@ -283,6 +293,7 @@ export const styles = `
   position: relative;
 }
 .chat__input-wrap {
+  position: relative;
   background: linear-gradient(180deg,
     color-mix(in srgb, var(--ai-fg) 10%, var(--ai-bg-elev)) 0%,
     var(--ai-bg-elev) 55%,
@@ -293,18 +304,58 @@ export const styles = `
   box-shadow:
     0 1px 0 var(--ai-metal-edge) inset,          /* 顶部内高光 → 凸起 */
     0 2px 8px color-mix(in srgb, #000 24%, transparent); /* 底部投影 */
-  transition: box-shadow .15s, background .15s;
+  transition: box-shadow .2s, background .2s;
   display: flex; flex-direction: column;
+}
+/* 霓虹灯: focus 时光点沿边框跑圈 (conic-gradient 旋转) + 呼吸光晕 */
+.chat__input-wrap::before {
+  content: '';
+  position: absolute; inset: -2px;
+  border-radius: 18px;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--ab-neon-angle),
+    transparent 0deg,
+    color-mix(in srgb, var(--ai-neon) 55%, transparent) 28deg,
+    color-mix(in srgb, var(--ai-neon) 95%, #ffffff) 50deg,
+    color-mix(in srgb, var(--ai-neon) 55%, transparent) 72deg,
+    transparent 100deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .5s ease;
+  animation: ab-neon-rotate 3.6s linear infinite;
+  z-index: 1;
+}
+.chat__input-wrap:focus-within::before {
+  opacity: 1;
 }
 .chat__input-wrap:focus-within {
   background: linear-gradient(180deg,
-    color-mix(in srgb, var(--ai-accent) 12%, var(--ai-bg-elev)) 0%,
+    color-mix(in srgb, var(--ai-neon) 10%, var(--ai-bg-elev)) 0%,
     var(--ai-bg-elev) 55%,
     color-mix(in srgb, var(--ai-fg) 2%, var(--ai-bg-elev)) 100%);
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--ai-accent) 22%, transparent),
+  animation: ab-neon-breathe 3.6s ease-in-out infinite;
+}
+@keyframes ab-neon-rotate {
+  from { --ab-neon-angle: 0deg; }
+  to   { --ab-neon-angle: 360deg; }
+}
+@keyframes ab-neon-breathe {
+  0%, 100% { box-shadow:
+    0 0 14px color-mix(in srgb, var(--ai-neon) 30%, transparent),
+    0 0 4px color-mix(in srgb, var(--ai-neon) 42%, transparent),
     0 1px 0 var(--ai-metal-edge) inset,
-    0 2px 8px color-mix(in srgb, #000 24%, transparent);
+    0 2px 8px color-mix(in srgb, #000 24%, transparent); }
+  50% { box-shadow:
+    0 0 26px color-mix(in srgb, var(--ai-neon) 56%, transparent),
+    0 0 7px color-mix(in srgb, var(--ai-neon) 62%, transparent),
+    0 1px 0 var(--ai-metal-edge) inset,
+    0 2px 8px color-mix(in srgb, #000 24%, transparent); }
 }
 .chat__input-wrap textarea {
   width: 100%; resize: none;
@@ -328,7 +379,7 @@ export const styles = `
   background: var(--ai-glass-bg);
   -webkit-backdrop-filter: var(--ai-glass-blur);
   backdrop-filter: var(--ai-glass-blur);
-  border: 1px solid var(--ai-glass-edge);
+  border: none;
   border-radius: 8px;
   font-size: 11px;
   color: var(--ai-fg);
@@ -369,7 +420,7 @@ export const styles = `
   background: var(--ai-glass-bg);
   -webkit-backdrop-filter: var(--ai-glass-blur);
   backdrop-filter: var(--ai-glass-blur);
-  border: 1px solid var(--ai-glass-edge);
+  border: none;
   border-radius: 16px;
   box-shadow: var(--ai-pop-shadow);
   display: flex; flex-direction: column;
@@ -379,7 +430,7 @@ export const styles = `
 .chat__preview-head {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--ai-divider);
+  box-shadow: 0 1px 0 var(--ai-divider);
 }
 .chat__preview-name {
   flex: 1; min-width: 0;
@@ -478,7 +529,7 @@ export const styles = `
   background: var(--ai-glass-bg);
   -webkit-backdrop-filter: var(--ai-glass-blur);
   backdrop-filter: var(--ai-glass-blur);
-  border: 1px solid var(--ai-glass-edge);
+  border: none;
   border-radius: 16px;
   box-shadow: var(--ai-pop-shadow);
   display: flex; flex-direction: column;
@@ -634,7 +685,7 @@ export const styles = `
   padding: 14px 20px;
   background: transparent;
   border: none;
-  border-top: 1px solid var(--ai-divider);
+  box-shadow: 0 -1px 0 var(--ai-divider);
   color: var(--ai-fg);
   font-family: inherit; font-size: 15px; font-weight: 600;
   cursor: pointer; text-align: left;
@@ -747,7 +798,7 @@ export const styles = `
   background: var(--ai-glass-bg);
   -webkit-backdrop-filter: var(--ai-glass-blur);
   backdrop-filter: var(--ai-glass-blur);
-  border: 1px solid var(--ai-glass-edge);
+  border: none;
   border-radius: 12px;
   box-shadow: 0 1px 0 var(--ai-metal-edge) inset, 0 12px 32px color-mix(in srgb, #000 40%, transparent);
   padding: 4px;
@@ -795,7 +846,7 @@ export const styles = `
   background: var(--ai-glass-bg);
   -webkit-backdrop-filter: var(--ai-glass-blur);
   backdrop-filter: var(--ai-glass-blur);
-  border: 1px solid var(--ai-glass-edge);
+  border: none;
   border-radius: 12px;
   box-shadow: 0 1px 0 var(--ai-metal-edge) inset, 0 12px 32px color-mix(in srgb, #000 40%, transparent);
   padding: 6px;
@@ -843,7 +894,7 @@ export const styles = `
   background: var(--ai-glass-bg);
   -webkit-backdrop-filter: var(--ai-glass-blur);
   backdrop-filter: var(--ai-glass-blur);
-  border: 1px solid var(--ai-glass-edge);
+  border: none;
   border-radius: 10px;
   overflow: hidden;
   min-width: 0;
@@ -889,7 +940,7 @@ export const styles = `
 .tool__section {
   margin-top: 4px;
   min-width: 0;
-  border-left: 2px solid var(--ai-divider);
+  box-shadow: -2px 0 0 var(--ai-divider);
   padding-left: 10px;
 }
 .tool__section pre {
@@ -908,7 +959,7 @@ export const styles = `
 .q {
   margin: 4px 0;
   background: var(--ai-input-bg);
-  border: 1px solid var(--ai-divider);
+  border: none;
   border-radius: 8px;
   overflow: hidden;
   min-width: 0;
@@ -975,7 +1026,7 @@ export const styles = `
   padding: 5px 14px; border-radius: 6px; cursor: pointer;
   background: var(--ai-hover);
   color: var(--ai-fg);
-  border: 1px solid var(--ai-border);
+  border: none;
   font-size: 12px; font-weight: 500;
 }
 .q__submit:hover { background: var(--ai-hover); }
@@ -991,7 +1042,7 @@ export const styles = `
 .chat__qmodal {
   margin-bottom: 8px;
   background: var(--ai-input-bg);
-  border: 1px solid var(--ai-border);
+  border: none;
   border-radius: 10px;
   overflow: hidden;
   flex-shrink: 0;
@@ -999,7 +1050,7 @@ export const styles = `
 .chat__qmodal-head {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--ai-divider);
+  box-shadow: 0 1px 0 var(--ai-divider);
 }
 .chat__qmodal-count { font-size: 12px; font-weight: 500; }
 .chat__qmodal-tabs { display: flex; gap: 4px; flex: 1; }
@@ -1080,7 +1131,7 @@ export const styles = `
 .todo {
   margin: 4px 0;
   background: var(--ai-input-bg);
-  border: 1px solid var(--ai-divider);
+  border: none;
   border-radius: 8px;
   overflow: hidden;
   min-width: 0;
@@ -1154,7 +1205,7 @@ export const styles = `
 .reason {
   margin: 4px 0;
   background: var(--ai-input-bg);
-  border: 1px solid var(--ai-divider);
+  border: none;
   border-radius: 8px;
   overflow: hidden;
   min-width: 0;
@@ -1217,7 +1268,7 @@ export const styles = `
 .chat__gate-user {
   margin-top: 6px;
   font-size: 11.5px; color: var(--ai-fg-muted);
-  padding-top: 12px; border-top: 1px solid var(--ai-divider);
+  padding-top: 12px; box-shadow: 0 -1px 0 var(--ai-divider);
 }
 
 /* Welcome */
@@ -1247,12 +1298,12 @@ export const styles = `
   background: var(--ai-glass-bg);
   -webkit-backdrop-filter: var(--ai-glass-blur);
   backdrop-filter: var(--ai-glass-blur);
-  border: 1px solid var(--ai-glass-edge);
+  border: none;
   border-radius: 10px;
   color: var(--ai-fg); font-family: inherit;
   cursor: pointer; text-align: left;
   box-shadow: 0 1px 0 var(--ai-metal-edge) inset, 0 2px 8px color-mix(in srgb, #000 16%, transparent);
-  transition: background .12s, border-color .12s;
+  transition: background .12s, box-shadow .12s;
 }
 .chat__agent-card:hover { background: var(--ai-hover); }
 .chat__agent-card.is-active {
@@ -1272,7 +1323,7 @@ export const styles = `
   background: var(--ai-glass-bg);
   -webkit-backdrop-filter: var(--ai-glass-blur);
   backdrop-filter: var(--ai-glass-blur);
-  border: 1px solid var(--ai-glass-edge);
+  border: none;
   border-radius: 10px;
   color: var(--ai-fg); font-family: inherit;
   cursor: pointer; text-align: left;

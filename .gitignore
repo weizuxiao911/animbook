@@ -38,3 +38,6 @@ registry/certs/
 
 # webpack 编译缓存 (filesystem cache, 可随时重建)
 .webpack-cache/
+
+# 本地临时文件 (playwright 截图等)
+.tmp/

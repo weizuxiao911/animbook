@@ -153,6 +153,13 @@ export const Chat: React.FC = () => {
     return () => window.clearInterval(id);
   }, []);
 
+  // 就绪后自动聚焦输入框
+  useEffect(() => {
+    if (!ready) return;
+    const t = setTimeout(() => taRef.current?.focus(), 200);
+    return () => clearTimeout(t);
+  }, [ready]);
+
   // 草稿会话: 打开面板且无 sessionID 时自动建一个; 若一直没发消息, 切换/删除/卸载时清理, 避免空会话污染历史
   const draftRef = useRef<{ sid: string; used: boolean } | null>(null);
   const ensureDraft = useCallback(async () => {
@@ -268,8 +275,7 @@ export const Chat: React.FC = () => {
     if (showModels) setTimeout(() => modelSearchRef.current?.focus(), 30);
   }, [showModels]);
   useEffect(() => {
-    if (!showAgents && !showModels && !showSessions) return;
-    const onDown = (e: MouseEvent) => {
+    if (!showAgents && !showModels && !showSessions) return;    const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
       if (t.closest('.chat__mpop')
         || t.closest('.chat__modal')
