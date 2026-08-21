@@ -58,7 +58,7 @@ export const styles = `
 
 /* Topbar — 柔和凸起 (细金属渐变 + 顶部高光 + 底部投影) */
 .chat__topbar {
-  height: 40px;
+  height: 36px;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 12px;
   background: linear-gradient(180deg,

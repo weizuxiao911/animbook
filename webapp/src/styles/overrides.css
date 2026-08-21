@@ -356,7 +356,7 @@ body.vs,
   box-shadow: none !important;
 }
 
-/* 顶栏: 与侧栏同档 */
+/* 顶栏: 与侧栏同档, 高度加大 (64px) */
 .-app-topbar,
 [class*="top_slot___"],
 [class*="design_top_slot"],
@@ -364,6 +364,9 @@ body.vs,
 [class*="design_top"] {
   background: var(--app-surface-muted) !important;
   border: none !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  max-height: 64px !important;
 }
 
 /* top 槽位外层 wrapper 透明, 让 codeblitz-root 的浅色 (#202224) 透过来;
@@ -522,3 +525,5 @@ div[data-viewlet-id="sessions-default"] [class*="titlebar"] {
 .activity-icon.ab-logo-v::before {
   content: none;
 }
+
+
