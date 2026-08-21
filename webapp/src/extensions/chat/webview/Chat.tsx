@@ -27,9 +27,9 @@ import {
   extractText, formatDuration,
   getQuestionStore, subscribeQuestionChange, setQuestion,
 } from './helpers';
-import { getBrand } from '../brand';
+import { getBrand } from '../scheme';
 import { styles } from './styles';
-import { LoginGate } from './components/LoginGate';
+import { ConnectingView } from './components/ConnectingView';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { MessageRow } from './components/MessageRow';
 import { SessionsModal } from './components/SessionsModal';
@@ -41,7 +41,6 @@ function loadClientCmds() {
 
 export const Chat: React.FC = () => {
   const layoutService = useInjectable<IMainLayoutService>(IMainLayoutService);
-  const [loggedIn] = useState<boolean>(true);
   useEffect(() => {}, []);
 
   // 挂载后设置 right 面板默认宽度 498 (getTabbarHandler 需在 tabbar 渲染后, 带重试)
@@ -132,6 +131,12 @@ export const Chat: React.FC = () => {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const modelSearchRef = useRef<HTMLInputElement>(null);
 
+  // 全局 opencode 用户信息 (webapp 启动期挂载, 无独立登录逻辑)
+  const globalUser = useMemo(() => {
+    const rt = (window as any).__APP_OPENCODE_RUNTIME__;
+    return rt ? { userId: rt.userId, tenantId: rt.tenantId, deployEnv: rt.deployEnv } : null;
+  }, []);
+
   // chat 只需要 opencode 实例 — 取全局 __APP_OPENCODE__, 不依赖 sandbox/fs/login.
   // 未创建时同步 ensure 一个 (getAiClient 内部 getOpencodeClient 会挂全局).
   const client = (window as any).__APP_OPENCODE__;
@@ -173,7 +178,7 @@ export const Chat: React.FC = () => {
 
   // --- 配置加载 (agents/models/providers/skills/commands) ---
   const loadConfig = useCallback(async () => {
-    if (!ready || !loggedIn) return;
+    if (!ready) return;
     try {
       const list = await aiListAgents();
       setAgents(list || []);
@@ -222,9 +227,9 @@ export const Chat: React.FC = () => {
     } catch (e) { console.warn('[ai] load models failed', e); }
     try { setProviders(await aiListProviders() || []); } catch (e) { console.warn('[ai] load providers failed', e); }
     try { setSkills(await aiListSkills() || []); } catch (e) { console.warn('[ai] load skills failed', e); }
-  }, [ready, loggedIn, currentAgent]);
+  }, [ready, currentAgent]);
   useEffect(() => {
-    if (!ready || !loggedIn) return;
+    if (!ready) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const wrap = async () => { if (!cancelled) await loadConfig(); };
@@ -236,7 +241,7 @@ export const Chat: React.FC = () => {
       if (timer) clearTimeout(timer);
       window.removeEventListener('chat:sandbox-ready', onSandboxReady);
     };
-  }, [ready, loggedIn, loadConfig]);
+  }, [ready, loadConfig]);
   useEffect(() => {
     const onReveal = () => setTimeout(() => taRef.current?.focus(), 120);
     const onPrefs = () => setModelsRefresh((n) => n + 1);
@@ -544,17 +549,15 @@ export const Chat: React.FC = () => {
     return provider ? `${name} · ${provider}` : name;
   }, [selectedModel, providers]);
 
-  const onSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || busy || !client) return;
-    setInput('');
-    setError('');
-    const images = attachments.filter((a) => a.dataUrl);
-    const files = attachments.filter((a) => !a.dataUrl);
+  const sendPrompt = useCallback(async (text: string, opts?: { files?: Array<{ name: string; path: string }>; images?: Array<{ name: string; path: string; dataUrl?: string }> }) => {
+    const t = (text || '').trim();
+    if (!t || busy || !client) return;
+    const images = opts?.images || [];
+    const files = opts?.files || [];
     const attachNote = files.length
       ? '\n\n[已上传文件]\n' + files.map((a) => `- ${a.path}`).join('\n')
       : '';
-    const fullText = text + attachNote;
+    const fullText = t + attachNote;
     const localId = `local-${Date.now()}`;
     const localParts: any[] = [{ type: 'text', text: fullText }];
     if (images.length) {
@@ -566,7 +569,6 @@ export const Chat: React.FC = () => {
       })));
     }
     setRows((prev) => [...prev, { id: localId, role: 'user', parts: localParts }]);
-    setAttachments([]);
     try {
       let sid = sessionID;
       if (!sid) {
@@ -608,10 +610,19 @@ export const Chat: React.FC = () => {
     } catch (e) {
       setBusy(false);
       setRows((prev) => prev.filter((r) => r.id !== localId));
-      setInput(text);
+      setInput(t);
       setApiError(e);
     }
-  }, [input, busy, sessionID, currentAgent, currentModel, models, attachments, client, setApiError]);
+  }, [busy, sessionID, currentAgent, currentModel, models, client, setApiError]);
+
+  const onSend = useCallback(async () => {
+    setError('');
+    setInput('');
+    const imgs = attachments.filter((a) => a.dataUrl);
+    const files = attachments.filter((a) => !a.dataUrl);
+    setAttachments([]);
+    await sendPrompt(input, { files, images: imgs });
+  }, [input, attachments, sendPrompt]);
 
   const onAbort = useCallback(async (sid?: string) => {
     const target = sid || sessionID;
@@ -1015,7 +1026,7 @@ export const Chat: React.FC = () => {
 
       <header className="chat__topbar">
         <div className="chat__brand">
-          <span className="chat__logo">{getBrand().logoChar}</span>
+          {getBrand() && <span className="chat__logo">{getBrand()!.logoChar}</span>}
           <span className="chat__brand-name">{
             (() => {
               if (!sessionID) return '新会话';
@@ -1091,13 +1102,10 @@ export const Chat: React.FC = () => {
 
       <div className="chat__messages" ref={scrollRef}>
         {!ready ? (
-          <LoginGate />
+          <ConnectingView user={globalUser} />
         ) : rows.length === 0 ? (
           <WelcomeScreen
-            agents={agents}
-            currentAgent={currentAgent}
-            onPick={(q) => { setInput(q); setTimeout(() => taRef.current?.focus(), 0); }}
-            onSelectAgent={onSwitchAgent}
+            onPick={(prompt) => { void sendPrompt(prompt); }}
           />
         ) : (
           rows.map((r) => (

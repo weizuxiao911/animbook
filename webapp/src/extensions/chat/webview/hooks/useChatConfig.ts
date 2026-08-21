@@ -20,7 +20,7 @@ import {
 } from '@/extensions/chat/commands/api';
 import { HIDDEN_AGENTS } from '../helpers';
 
-export function useChatConfig(ready: boolean, loggedIn: boolean) {
+export function useChatConfig(ready: boolean) {
   const [agents, setAgents] = useState<any[]>([]);
   const [currentAgent, setCurrentAgent] = useState<string>('build');
   const [models, setModels] = useState<any[]>([]);
@@ -54,7 +54,7 @@ export function useChatConfig(ready: boolean, loggedIn: boolean) {
   }, []);
 
   useEffect(() => {
-    if (!ready || !loggedIn) return;
+    if (!ready) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const wrap = async () => {
@@ -69,7 +69,7 @@ export function useChatConfig(ready: boolean, loggedIn: boolean) {
       if (timer) clearTimeout(timer);
       window.removeEventListener('chat:sandbox-ready', onSandboxReady);
     };
-  }, [ready, loggedIn, attempt]);
+  }, [ready, attempt]);
 
   // 监听 model prefs 变化 (e.g. ModelPicker 设置了默认)
   useEffect(() => {

@@ -5,21 +5,21 @@ import { App } from './App';
 import { installRegistryMetadata } from './services/registry';
 import { installOpencodeClient } from './services/opencode-sdk';
 import { installFsApi } from './services/fs';
-import { APP_BRAND } from './config/brand';
+import { APP_CHAT_CONFIG } from './config/brand';
 import './styles/overrides.css';
 
 (window as any).React = React;
 
 // webapp 容器全局配置 — 给 vsix 用的"如何连 backend / 走什么环境"等元信息
 // vsix 通过 window.__APP_CONFIG__.opencodeUrl 拿到 baseUrl, 自己 import @opencode-ai/sdk 创建 client
-// brand 为全局品牌配置, 拓展只读这里, 不直接 import @/config/brand
+// chatConfig 为全局 Chat 配置 (品牌 + 建议卡片), 拓展只读这里, 不直接 import @/config/brand
 const config = {
   opencodeUrl: '/api',
   registryUrl: '/extensions',
   deployEnv: 'development',
   workspaceDir: '/workspace',
   theme: 'opensumi-design-dark-theme',
-  brand: APP_BRAND,
+  chatConfig: APP_CHAT_CONFIG,
 };
 (window as any).__APP_CONFIG__ = config;
 console.log('[webapp] __APP_CONFIG__ 挂载:', config);

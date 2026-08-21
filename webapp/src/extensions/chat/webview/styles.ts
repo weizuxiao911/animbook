@@ -1155,15 +1155,11 @@ export const styles = `
 .chat__gate-features { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .chat__gate-features li { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; color: var(--ai-fg); line-height: 1.5; }
 .chat__gate-features svg { color: var(--ai-fg); flex-shrink: 0; margin-top: 2px; }
-.chat__gate-btn {
-  margin-top: 6px; align-self: flex-start;
-  padding: 9px 20px;
-  background: var(--ai-success);
-  color: var(--button-secondaryForeground, var(--ai-bg)); border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
-  box-shadow: 0 4px 14px rgba(34,197,94,0.25);
+.chat__gate-user {
+  margin-top: 6px;
+  font-size: 11.5px; color: var(--ai-fg-muted);
+  padding-top: 12px; border-top: 1px solid var(--ai-divider);
 }
-.chat__gate-btn:hover { filter: brightness(1.08); }
 
 /* Welcome */
 .chat__welcome {
