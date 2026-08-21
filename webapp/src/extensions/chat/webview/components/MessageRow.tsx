@@ -12,10 +12,28 @@ export const MessageRow: React.FC<{
   if (row.role === 'user') {
     const text = extractText(row.parts);
     const copy = () => navigator.clipboard?.writeText(text);
+    const fileParts = (row.parts || []).filter((p: any) => p?.type === 'file');
     return (
       <div className="chat__msg is-user">
         <div className="chat__msg-user-col">
-          <div className="chat__msg-bubble is-user">{text}</div>
+          <div className="chat__msg-bubble is-user">
+            {text && <div className="chat__msg-user-text">{text}</div>}
+            {fileParts.map((p: any, i: number) => {
+              const mime = String(p.mime || '');
+              const url = String(p.url || '');
+              if (!url) return null;
+              return mime.startsWith('image/')
+                ? <img key={i} className="chat__part-file chat__part-file--image" src={url} alt={p.filename || 'image'} />
+                : <div key={i} className="chat__part-file">
+                    <a href={url} target="_blank" rel="noreferrer" download={p.filename}>
+                      <span className="chat__part-file-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </span>
+                      <span className="chat__part-file-name">{p.filename || url}</span>
+                    </a>
+                  </div>;
+            })}
+          </div>
           <div className="chat__msg-meta is-user">
             <button className="chat__msg-copy" onClick={copy} title="复制">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>

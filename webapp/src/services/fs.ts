@@ -43,7 +43,8 @@ export async function fsList(idePath: string): Promise<FsEntry[]> {
     return entries
       .map((e) => {
         const fullPath: string = e?.path || e?.name || '';
-        const name = basename(fullPath);
+        // 目录 path 可能带尾部 `/` (如 'workspace/'), 先去掉再取 basename
+        const name = basename(fullPath.replace(/[\\/]+$/, ''));
         const type: 0 | 1 | 2 = e?.type === 'directory' ? FILE_TYPE_DIR : FILE_TYPE_FILE;
         return { name, type } as FsEntry;
       })

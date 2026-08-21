@@ -56,6 +56,7 @@ export const ModelPicker: React.FC<Props> = ({
   const [activeIndex, setActiveIndex] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const keyRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   // 本地隐藏偏好 (modelPrefs 变更后强制重渲染)
   useEffect(() => {
@@ -201,10 +202,16 @@ export const ModelPicker: React.FC<Props> = ({
     setActiveIndex(0);
   }, [query, view.kind, view.kind === 'select' ? (view as any).filterProvider : undefined]);
 
-  // 高亮项跟随滚动进入视野
+  // 高亮项跟随滚动进入视野 (仅滚动 modal-body 容器, 避免整页跳动)
   useEffect(() => {
-    const el = document.querySelector('.chat__modal-item.is-highlighted, .chat__modal-catrow.is-highlighted');
-    el?.scrollIntoView({ block: 'nearest' });
+    const body = bodyRef.current;
+    if (!body) return;
+    const el = body.querySelector('.is-highlighted');
+    if (!el) return;
+    const bRect = body.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    if (eRect.top < bRect.top) body.scrollTop += eRect.top - bRect.top;
+    else if (eRect.bottom > bRect.bottom) body.scrollTop += eRect.bottom - bRect.bottom;
   }, [activeIndex]);
 
   const handleNavKeyDown = (e: React.KeyboardEvent) => {
@@ -311,7 +318,7 @@ export const ModelPicker: React.FC<Props> = ({
               />
             </div>
 
-            <div className="chat__modal-body">
+            <div className="chat__modal-body" ref={bodyRef}>
               {selectGroups.length === 0 && (
                 <div className="chat__modal-empty">无匹配模型</div>
               )}
@@ -382,7 +389,7 @@ export const ModelPicker: React.FC<Props> = ({
               />
             </div>
 
-            <div className="chat__modal-body">
+            <div className="chat__modal-body" ref={bodyRef}>
               {error && <div className="chat__modal-error">{error}</div>}
               {!allProviders && <div className="chat__modal-empty">加载服务商列表中…</div>}
               {allProviders && filteredCatalog.length === 0 && (

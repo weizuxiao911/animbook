@@ -163,6 +163,29 @@ export const styles = `
   font-size: 13px; line-height: 1.5;
   max-width: 100%;
 }
+.chat__msg-user-text { white-space: pre-wrap; }
+.chat__part-file--image {
+  display: block; max-width: 240px; max-height: 240px;
+  border-radius: 8px; margin-top: 6px;
+  object-fit: contain;
+}
+.chat__part-file {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 6px; max-width: 100%;
+}
+.chat__part-file a {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  background: var(--ai-hover);
+  border: 1px solid var(--ai-border);
+  border-radius: 8px;
+  color: var(--ai-fg);
+  text-decoration: none;
+  font-size: 12.5px;
+  max-width: 100%;
+}
+.chat__part-file-icon { flex-shrink: 0; color: var(--ai-fg-muted); display: inline-flex; }
+.chat__part-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 强制: 消息列内所有容器不要溢出 (thinking / tool / reason / q-card 卡片都靠这条) */
 .chat__msg-body > div,
 .chat__msg-body > pre,
@@ -252,33 +275,97 @@ export const styles = `
 }
 .chat__input-wrap textarea::placeholder { color: var(--ai-fg-muted); }
 
-/* Attachment chips */
+/* Attachment cards */
 .chat__attach {
   display: flex; flex-wrap: wrap; gap: 6px;
-  padding: 0 2px 6px;
+  padding: 0 2px 8px;
 }
-.chat__attach-chip {
+.chat__attach-card {
   display: inline-flex; align-items: center; gap: 6px;
-  max-width: 100%;
-  padding: 3px 8px;
+  max-width: 180px;
+  padding: 4px 6px;
   background: var(--ai-hover);
   border: 1px solid var(--ai-border);
-  border-radius: 6px;
-  font-size: 11.5px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--ai-fg);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background .15s;
 }
+.chat__attach-card:hover { border-color: var(--ai-accent); }
 .chat__attach-name {
+  flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.chat__attach-x {
-  background: transparent; border: none; color: var(--ai-fg-muted);
-  font-size: 12px; cursor: pointer; line-height: 1; padding: 0;
+.chat__attach-thumb {
+  width: 26px; height: 26px; object-fit: cover;
+  border-radius: 5px; flex-shrink: 0;
 }
-.chat__attach-x:hover { color: var(--ai-fg); }
+.chat__attach-ic {
+  flex-shrink: 0; width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 5px;
+  background: var(--ai-input-bg);
+  color: var(--ai-fg-muted);
+}
+.chat__attach-ic--lg { width: 52px; height: 52px; border-radius: 12px; }
+.chat__attach-x {
+  flex-shrink: 0;
+  background: transparent; border: none; color: var(--ai-fg-muted);
+  font-size: 13px; cursor: pointer; line-height: 1; padding: 0 2px;
+}
+.chat__attach-x:hover { color: var(--ai-danger); }
+
+/* 附件预览 */
+.chat__preview {
+  width: min(680px, 100%);
+  max-height: min(calc(100vh - 72px), 720px);
+  background: var(--ai-bg-elev);
+  border: 1px solid var(--ai-border);
+  border-radius: 14px;
+  box-shadow: var(--ai-shadow);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: chat-pop .14s ease-out;
+}
+.chat__preview-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ai-divider);
+}
+.chat__preview-name {
+  flex: 1; min-width: 0;
+  font-size: 13px; font-weight: 600; color: var(--ai-fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat__preview-body {
+  flex: 1; overflow: auto;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  min-height: 200px;
+}
+.chat__preview-body img {
+  max-width: 100%; max-height: calc(100vh - 220px);
+  object-fit: contain;
+  border-radius: 8px;
+}
+.chat__preview-file {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  color: var(--ai-fg-muted);
+}
+.chat__preview-path {
+  font-size: 12.5px;
+  word-break: break-all;
+  text-align: center;
+}
 
 .chat__input-bar {
   display: flex; align-items: center; gap: 4px;
 }
 .chat__select { position: relative; min-width: 0; flex: 0 1 auto; }
+.chat__select--hidden { display: none; }
 .chat__bar-spacer { flex: 1; }
 .chat__bar-btn {
   display: inline-flex; align-items: center; gap: 5px;
@@ -463,6 +550,22 @@ export const styles = `
   background: var(--ai-active);
 }
 .chat__modal-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat__skill-item { align-items: flex-start; }
+.chat__skill-body {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.chat__skill-name { font-weight: 600; color: var(--ai-fg); }
+.chat__skill-desc {
+  font-size: 12px; font-weight: 400; color: var(--ai-fg-muted);
+  line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.chat__skill-loc {
+  font-size: 10.5px; color: var(--ai-fg-muted); opacity: .7;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .chat__modal-tag {
   flex-shrink: 0;
   font-size: 10.5px; padding: 2px 7px; border-radius: 4px;
@@ -605,13 +708,15 @@ export const styles = `
   color: var(--ai-fg); font-family: inherit; text-align: left;
   cursor: pointer;
 }
+.chat__cmd-item--mention { align-items: center; }
 .chat__cmd-item:hover { background: var(--ai-hover); }
 .chat__cmd-item.active { background: var(--ai-active); }
 .chat__cmd-cmd {
-  flex-shrink: 0;
+  flex: 0 1 auto; min-width: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px; font-weight: 600;
   color: var(--ai-fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .chat__cmd-name {
   flex: 1; min-width: 0;
@@ -622,6 +727,8 @@ export const styles = `
   flex-shrink: 0; max-width: 40%;
   font-size: 10.5px; color: var(--ai-fg-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-left: auto;
+  opacity: .8;
 }
 .chat__cmd-empty {
   padding: 18px 12px; text-align: center;

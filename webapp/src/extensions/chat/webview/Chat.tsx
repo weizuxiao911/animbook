@@ -6,13 +6,9 @@ import { IMainLayoutService } from '@opensumi/ide-main-layout/lib/common';
 import {
   aiListAgents,
   aiListSkills,
-  aiListCommands,
   aiListSessions,
   aiSwitchAgent,
   aiCompactSession,
-  aiShareSession,
-  aiUnshareSession,
-  aiClearMessages,
   aiReplyQuestion,
   aiRejectQuestion,
   aiReplyPermission,
@@ -37,6 +33,7 @@ import { LoginGate } from './components/LoginGate';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { MessageRow } from './components/MessageRow';
 import { SessionsModal } from './components/SessionsModal';
+import { SkillsModal } from './components/SkillsModal';
 
 function loadClientCmds() {
   return CLIENT_COMMANDS.map((c) => ({ cmd: c.cmd, name: c.desc, hint: c.hint || '', source: 'client-cmd' as const }));
@@ -91,8 +88,8 @@ export const Chat: React.FC = () => {
   const [modelPickerView, setModelPickerView] = useState<'select' | 'providers'>('select');
   const [showCommands, setShowCommands] = useState(false);
   const [showMentions, setShowMentions] = useState(false);
+  const [showSkills, setShowSkills] = useState(false);
   const [skills, setSkills] = useState<Array<{ name: string; description?: string; location?: string }>>([]);
-  const [commands, setCommands] = useState<Array<{ name: string; description?: string; source?: string; template?: string; subtask?: boolean }>>([]);
   const [, setQuestionRev] = useState(0);
   const [activeQuestion, setActiveQuestion] = useState<{ requestID: string; questions: any[] } | null>(null);
   const [pendingPermission, setPendingPermission] = useState<any>(null);
@@ -101,10 +98,12 @@ export const Chat: React.FC = () => {
     const unsub = subscribeQuestionChange(sub);
     return unsub;
   }, []);
-  const [attachments, setAttachments] = useState<Array<{ name: string; path: string }>>([]);
+  const [attachments, setAttachments] = useState<Array<{ name: string; path: string; dataUrl?: string }>>([]);
+  const [previewAttachment, setPreviewAttachment] = useState<{ name: string; path: string; dataUrl?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [modelQuery, setModelQuery] = useState('');
   const [mentionQuery, setMentionQuery] = useState('');
+  const FILE_TYPE_DIR = 2;
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -223,7 +222,6 @@ export const Chat: React.FC = () => {
     } catch (e) { console.warn('[ai] load models failed', e); }
     try { setProviders(await aiListProviders() || []); } catch (e) { console.warn('[ai] load providers failed', e); }
     try { setSkills(await aiListSkills() || []); } catch (e) { console.warn('[ai] load skills failed', e); }
-    try { setCommands(await aiListCommands() || []); } catch (e) { console.warn('[ai] load commands failed', e); }
   }, [ready, loggedIn, currentAgent]);
   useEffect(() => {
     if (!ready || !loggedIn) return;
@@ -551,12 +549,23 @@ export const Chat: React.FC = () => {
     if (!text || busy || !client) return;
     setInput('');
     setError('');
-    const attachNote = attachments.length
-      ? '\n\n[已上传文件]\n' + attachments.map((a) => `- ${a.path}`).join('\n')
+    const images = attachments.filter((a) => a.dataUrl);
+    const files = attachments.filter((a) => !a.dataUrl);
+    const attachNote = files.length
+      ? '\n\n[已上传文件]\n' + files.map((a) => `- ${a.path}`).join('\n')
       : '';
     const fullText = text + attachNote;
     const localId = `local-${Date.now()}`;
-    setRows((prev) => [...prev, { id: localId, role: 'user', parts: [{ type: 'text', text: fullText }] }]);
+    const localParts: any[] = [{ type: 'text', text: fullText }];
+    if (images.length) {
+      localParts.push(...images.map((a) => ({
+        type: 'file',
+        mime: (a.dataUrl!.split(',')[0].match(/data:([^;]+)/)?.[1] || 'image/png'),
+        filename: a.name,
+        url: a.dataUrl,
+      })));
+    }
+    setRows((prev) => [...prev, { id: localId, role: 'user', parts: localParts }]);
     setAttachments([]);
     try {
       let sid = sessionID;
@@ -581,10 +590,19 @@ export const Chat: React.FC = () => {
         : undefined;
       setBusy(true);
       // promptAsync: fire-and-forget, 回复由 SSE 事件流 (message.part.updated) 打字机式渲染
+      const parts: any[] = [{ type: 'text', text: fullText }];
+      if (images.length) {
+        parts.push(...images.map((a) => ({
+          type: 'file',
+          mime: (a.dataUrl!.split(',')[0].match(/data:([^;]+)/)?.[1] || 'image/png'),
+          filename: a.name,
+          url: a.dataUrl,
+        })));
+      }
       await client.session.promptAsync({
         sessionID: sid,
         agent: currentAgent,
-        parts: [{ type: 'text', text: fullText }],
+        parts,
         ...(model ? { model } : {}),
       });
     } catch (e) {
@@ -634,30 +652,20 @@ export const Chat: React.FC = () => {
 
   const commandList = useMemo(() => {
     const seen = new Set<string>();
-    const list: Array<{ cmd: string; name: string; hint?: string; template?: string; subtask?: boolean; source: 'client-cmd' | 'command' | 'skill' }> = [];
+    const list: Array<{ cmd: string; name: string; hint?: string; source: 'client-cmd' }> = [];
     for (const c of loadClientCmds()) {
       if (seen.has(c.cmd)) continue;
       seen.add(c.cmd);
       list.push({ cmd: c.cmd, name: c.name, hint: c.hint, source: 'client-cmd' });
     }
-    for (const c of commands) {
-      if (!c.name || seen.has(c.name)) continue;
-      seen.add(c.name);
-      list.push({ cmd: c.name, name: c.description || '', hint: '', template: c.template, subtask: c.subtask, source: 'command' });
-    }
-    for (const s of skills) {
-      if (!s.name || seen.has(s.name)) continue;
-      seen.add(s.name);
-      list.push({ cmd: s.name, name: s.description || '', hint: '', source: 'skill' });
-    }
     return list;
-  }, [skills, commands]);
+  }, []);
 
   const visibleAgents = useMemo(
     () => agents.filter((a: any) => {
       const id = a.id || a.name;
       const mode = a.mode || a.data?.mode;
-      return id && !HIDDEN_AGENTS.has(id) && (mode === 'primary' || mode === 'all');
+      return id && !HIDDEN_AGENTS.has(id) && mode === 'primary';
     }),
     [agents]
   );
@@ -669,22 +677,121 @@ export const Chat: React.FC = () => {
     return commandList.filter((c) => c.cmd.toLowerCase().startsWith(qLower) || c.name.toLowerCase().includes(qLower));
   }, [commandList, input]);
 
+  // @ 提及 = primary agent + 工作目录递归铺平的所有文件/目录
+  // query 用于过滤; 遇到空格输入框自动关闭弹层
+  const mentionQueryFilter = mentionQuery.toLowerCase();
+
+  // 异步列某目录子项 (ide 相对路径)
+  const loadMentionDir = useCallback(async (idePath: string) => {
+    const fsApi = (window as any).__APP_FS_API__;
+    if (!fsApi?.list) return [];
+    try {
+      const list = await fsApi.list(idePath);
+      return (list || []).filter((e: any) => e && e.name && e.name !== '.' && e.name !== '..');
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // 递归铺平整个工作目录树 → 扁平列表 [{path, type, depth}]
+  // 按层级 BFS 异步加载, 每层加载完追加显示
+  const [mentionFiles, setMentionFiles] = useState<Array<{ path: string; type: 'file' | 'dir'; depth: number }>>([]);
+  const [mentionLoading, setMentionLoading] = useState(false);
+
+  useEffect(() => {
+    if (!showMentions) return;
+    let cancelled = false;
+    setMentionLoading(true);
+    setMentionFiles([]);
+    const visited = new Set<string>();
+    // 队列: {idePath, rel, depth}, 每层一起出队 → 同 depth 一起入队 = 逐层铺开
+    let queue: Array<{ idePath: string; rel: string; depth: number }> = [{ idePath: '/', rel: '', depth: 0 }];
+    (async () => {
+      while (queue.length) {
+        if (cancelled) return;
+        const level = queue;
+        queue = [];
+        const nextQueue: Array<{ idePath: string; rel: string; depth: number }> = [];
+        const out: Array<{ path: string; type: 'file' | 'dir'; depth: number }> = [];
+        await Promise.all(level.map(async ({ idePath, rel, depth }) => {
+          if (cancelled || visited.has(idePath)) return;
+          visited.add(idePath);
+          const list = await loadMentionDir(idePath);
+          for (const e of list) {
+            if (cancelled) return;
+            const isDir = e.type === FILE_TYPE_DIR;
+            const childRel = rel ? `${rel}/${e.name}` : e.name;
+            out.push({ path: childRel, type: isDir ? 'dir' as const : 'file' as const, depth });
+            if (isDir) nextQueue.push({ idePath: `/${childRel}`, rel: childRel, depth: depth + 1 });
+          }
+        }));
+        if (cancelled) return;
+        // 本层目录项排前面 (保持树形视觉: 目录先于其子目录内的文件)
+        out.sort((a, b) => (a.depth - b.depth) || (a.type === 'dir' && b.type !== 'dir' ? -1 : 1));
+        setMentionFiles((prev) => [...prev, ...out]);
+        queue = nextQueue;
+      }
+      if (!cancelled) setMentionLoading(false);
+    })().catch(() => { if (!cancelled) setMentionLoading(false); });
+    return () => { cancelled = true; };
+  }, [showMentions, loadMentionDir]);
+
   const mentionList = useMemo(() => {
-    const q = input.match(/(?:^|\s)[@#](\S*)$/)?.[1] || '';
-    const items: Array<{ id: string; name: string; type: 'agent' | 'file' | 'symbol'; hint?: string }> = [
-      ...visibleAgents.map((a) => ({ id: a.id || a.name, name: a.name || a.id, type: 'agent' as const, hint: AGENT_DESC[a.id || a.name] })),
-    ];
-    if (!q) return items;
-    return items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
-  }, [visibleAgents, input]);
+    const q = mentionQueryFilter;
+    const agentItems: Array<{ id: string; name: string; type: 'agent'; hint?: string }> = visibleAgents
+      .filter((a) => {
+        const id = a.id || a.name;
+        const name = a.name || id;
+        return !q || name.toLowerCase().includes(q) || id.toLowerCase().includes(q);
+      })
+      .map((a) => ({
+        id: a.id || a.name,
+        name: a.name || a.id,
+        type: 'agent' as const,
+        hint: AGENT_DESC[a.id || a.name] || (a as any).description,
+      }));
+
+    const pathItems: Array<{ id: string; name: string; type: 'file' | 'dir'; hint?: string; depth: number }> = mentionFiles
+      .filter((f) => !q || f.path.toLowerCase().includes(q))
+      .map((f) => ({
+        id: f.path,
+        name: f.path,
+        type: f.type,
+        hint: f.type === 'dir' ? '目录' : '文件',
+        depth: f.depth,
+      }));
+
+    return [...agentItems, ...pathItems];
+  }, [visibleAgents, mentionQueryFilter, mentionFiles]);
 
   const [cmdIndex, setCmdIndex] = useState(0);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const cmdPopRef = useRef<HTMLDivElement>(null);
+  const mentionPopRef = useRef<HTMLDivElement>(null);
   useEffect(() => { setCmdIndex(0); }, [filteredCommands.length, input]);
   useEffect(() => { setMentionIndex(0); }, [mentionList.length, input]);
 
+  // 命令/提及弹层: 高亮项跟随滚动进入视野
+  useEffect(() => {
+    const pop = cmdPopRef.current;
+    const el = pop?.querySelector('.chat__cmd-item.active');
+    if (!pop || !el) return;
+    const pRect = pop.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    if (eRect.top < pRect.top) pop.scrollTop += eRect.top - pRect.top;
+    else if (eRect.bottom > pRect.bottom) pop.scrollTop += eRect.bottom - pRect.bottom;
+  }, [cmdIndex]);
+  useEffect(() => {
+    const pop = mentionPopRef.current;
+    const el = pop?.querySelector('.chat__cmd-item.active');
+    if (!pop || !el) return;
+    const pRect = pop.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    if (eRect.top < pRect.top) pop.scrollTop += eRect.top - pRect.top;
+    else if (eRect.bottom > pRect.bottom) pop.scrollTop += eRect.bottom - pRect.bottom;
+  }, [mentionIndex]);
+
   const runClientCmd = useCallback(async (cmd: string) => {
-    if (!sessionID) { setError('当前没有选中会话'); return; }
     try {
       switch (cmd) {
         case 'model': {
@@ -693,6 +800,7 @@ export const Chat: React.FC = () => {
           setShowModels(true);
           setShowAgents(false);
           setShowCommands(false);
+          setShowSkills(false);
           break;
         }
         case 'connect': {
@@ -701,9 +809,11 @@ export const Chat: React.FC = () => {
           setShowModels(true);
           setShowAgents(false);
           setShowCommands(false);
+          setShowSkills(false);
           break;
         }
         case 'compact': {
+          if (!sessionID) { setError('当前没有选中会话'); return; }
           try {
             await aiCompactSession(sessionID);
             showNotice('已发起压缩, 完成后会刷新消息');
@@ -713,110 +823,57 @@ export const Chat: React.FC = () => {
           }
           break;
         }
-        case 'clear': {
-          const n = await aiClearMessages(sessionID);
-          showNotice(`已清空 ${n} 条消息`);
-          setRows([]);
+        case 'new': {
+          await onNewSession();
           break;
         }
-        case 'copy': {
-          const res = await client?.session.messages({ sessionID });
-          const list = res?.data?.data || res?.data?.messages || res?.data || [];
-          const md = (Array.isArray(list) ? list : []).map((m: any) => {
-            const info = m.info || m;
-            const text = (m.parts || info.parts || []).filter((p: any) => p.type === 'text' && !p.synthetic).map((p: any) => p.text).join('');
-            return `**${info.role}**:\n\n${text}\n`;
-          }).join('\n---\n\n');
-          await navigator.clipboard.writeText(md || '(空会话)');
-          showNotice('已复制到剪贴板');
+        case 'skill': {
+          setShowSkills(true);
+          setShowModels(false);
+          setShowAgents(false);
+          setShowCommands(false);
           break;
         }
-        case 'share': {
-          const url = await aiShareSession(sessionID);
-          if (url) await navigator.clipboard.writeText(url);
-          showNotice(url ? '分享链接已复制' : '分享失败');
+        case 'session': {
+          setShowSessions(true);
+          void loadSessions();
+          setShowModels(false);
+          setShowAgents(false);
+          setShowCommands(false);
+          setShowSkills(false);
           break;
         }
-        case 'unshare': {
-          await aiUnshareSession(sessionID);
-          showNotice('已取消分享');
-          break;
-        }
-        case 'export': {
-          const res = await client?.session.messages({ sessionID });
-          const list = res?.data?.data || res?.data?.messages || res?.data || [];
-          const md = `# Session ${sessionID}\}\n\n` + (Array.isArray(list) ? list : []).map((m: any) => {
-            const info = m.info || m;
-            const text = (m.parts || info.parts || []).filter((p: any) => p.type === 'text' && !p.synthetic).map((p: any) => p.text).join('');
-            return `## ${info.role}\}\n\n${text}\}\n`;
-          }).join('\n---\n\n');
-          const blob = new Blob([md], { type: 'text/markdown' });
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = `session-${sessionID.slice(0, 8)}.md`;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          break;
-        }
-        case 'help': {
-          showNotice([
-            '快捷键:',
-            '  ↑↓  Enter — 选择 / 弹层项',
-            '  Esc  Tab — 关闭弹层 / 补全',
-            '  Enter — 发送消息',
-            '  Shift+Enter — 换行',
-            '  / — 命令 · @ — agent/文件引用',
-          ].join('\n'));
+        case 'agent': {
+          setShowAgents(true);
+          setShowModels(false);
+          setShowCommands(false);
+          setShowSkills(false);
           break;
         }
         default: setError(`未知客户端命令: /${cmd}`);
       }
     } catch (e) { setError(`/${cmd} 失败: ${String((e as any)?.message || e)}`); }
-  }, [sessionID, client, loadMessages, showNotice, setShowModels, setShowAgents, setShowCommands, setModelPickerView]);
+  }, [sessionID, client, loadMessages, showNotice, onNewSession, loadSessions, setShowSessions, setShowSkills, setShowModels, setShowAgents, setShowCommands, setModelPickerView]);
 
-  const applyCommand = useCallback(async (c: { cmd: string; name: string; hint?: string; template?: string; subtask?: boolean; source: 'client-cmd' | 'command' | 'skill' }) => {
-    const m = input.match(/(?:^|\s)\/(\S+)(?:\s+(.*))?$/);
-    const args = (m && m[2]) ? m[2].trim() : '';
+  const applyCommand = useCallback(async (c: { cmd: string; name: string; hint?: string; source: 'client-cmd' }) => {
     setShowCommands(false);
     setInput('');
-
-    if (c.source === 'client-cmd') { await runClientCmd(c.cmd); return; }
-
-    if (c.template) {
-      const promptText = c.template.replace(/\$ARGUMENTS/g, args || '(no arguments provided)');
-      try {
-        let sid = sessionID;
-        if (!sid) {
-          const res = await client.session.create({});
-          sid = res?.data?.id;
-          if (sid) setSessionID(sid);
-        }
-        const model = currentModel
-          ? (() => {
-              const m = models.find((x: any) => x.id === currentModel);
-              return m ? { providerID: m.providerID, modelID: m.id } : { modelID: currentModel };
-            })()
-          : undefined;
-        await client.session.prompt({
-          sessionID: sid,
-          agent: currentAgent,
-          parts: [{ type: 'text', text: promptText }],
-          ...(model ? { model } : {}),
-        });
-        setBusy(true);
-      } catch (e) { setApiError(e); }
-      return;
-    }
-
-    setInput(`/${c.cmd} `);
-    setTimeout(() => taRef.current?.focus(), 0);
-  }, [input, sessionID, currentAgent, currentModel, models, client, runClientCmd, setApiError]);
+    await runClientCmd(c.cmd);
+  }, [runClientCmd]);
 
   const applyMention = useCallback((m: { id: string; name: string; type: string }) => {
     const trigger = input.match(/[@#]\S*$/)?.[0]?.[0] || '@';
+    // agent / 目录 / 文件: 统一补全 (目录也补全路径)
     const replaced = input.replace(/[@#]\S*$/, `${trigger}${m.name} `);
     setInput(replaced);
     setShowMentions(false);
+    setTimeout(() => taRef.current?.focus(), 0);
+  }, [input]);
+
+  const onSelectSkill = useCallback((s: { name: string; description?: string; location?: string }) => {
+    const replaced = input.replace(/(?:^|\s)\/(\S*)$/, ` #${s.name} `);
+    setInput(replaced);
+    setShowSkills(false);
     setTimeout(() => taRef.current?.focus(), 0);
   }, [input]);
 
@@ -872,12 +929,41 @@ export const Chat: React.FC = () => {
     const added: Array<{ name: string; path: string }> = [];
     for (const f of Array.from(files)) {
       try {
-        const text = await f.text();
+        const buf = await f.arrayBuffer();
         const safe = f.name.replace(/[^\w.\-\u4e00-\u9fa5]/g, '_');
         const path = `/${safe}`;
-        await fsApi.write(path, text);
+        await fsApi.write(path, new Uint8Array(buf));
         added.push({ name: f.name, path });
       } catch (e) { setError(`上传 ${f.name} 失败: ${String((e as any)?.message || e)}`); }
+    }
+    if (added.length) setAttachments((prev) => [...prev, ...added]);
+  }, []);
+
+  const onPaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const images = items.filter((it) => it.kind === 'file' && it.type.startsWith('image/'));
+    if (images.length === 0) return; // 纯文本粘贴交给 textarea 默认行为
+    e.preventDefault();
+    const fsApi = (window as any).__APP_FS_API__;
+    if (!fsApi?.write) { setError('沙箱文件系统未就绪'); return; }
+    const added: Array<{ name: string; path: string; dataUrl?: string }> = [];
+    for (const it of images) {
+      try {
+        const f = it.getAsFile();
+        if (!f) continue;
+        const ext = (f.type.split('/')[1] || 'png').split(';')[0].replace(/[^\w]/g, '');
+        const name = `paste-${Date.now()}-${Math.floor(Math.random() * 1000)}.${ext}`;
+        const path = `/${name}`;
+        const buf = new Uint8Array(await f.arrayBuffer());
+        await fsApi.write(path, buf);
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(String(fr.result || ''));
+          fr.onerror = () => reject(fr.error);
+          fr.readAsDataURL(f);
+        });
+        added.push({ name: f.name || name, path, dataUrl });
+      } catch (err) { setError(`粘贴图片失败: ${String((err as any)?.message || err)}`); }
     }
     if (added.length) setAttachments((prev) => [...prev, ...added]);
   }, []);
@@ -890,7 +976,7 @@ export const Chat: React.FC = () => {
       const [, trigger, q] = m;
       if (trigger === '/') {
         setShowCommands(true); setShowMentions(false); setShowModels(false); setShowAgents(false);
-      } else if (trigger === '@' || trigger === '#') {
+      } else if (trigger === '@') {
         setShowMentions(true); setMentionQuery(q || ''); setShowCommands(false); setShowModels(false); setShowAgents(false);
       }
     } else { setShowCommands(false); setShowMentions(false); }
@@ -967,6 +1053,42 @@ export const Chat: React.FC = () => {
         />
       )}
 
+      {ready && showSkills && (
+        <SkillsModal
+          skills={skills}
+          onSelect={onSelectSkill}
+          onClose={() => setShowSkills(false)}
+        />
+      )}
+
+      {previewAttachment && (
+        <div
+          className="chat__modal-overlay"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setPreviewAttachment(null); }}
+        >
+          <div className="chat__preview" role="dialog" aria-modal="true">
+            <div className="chat__preview-head">
+              <span className="chat__preview-name">{previewAttachment.name}</span>
+              <button type="button" className="chat__modal-back" title="关闭" onClick={() => setPreviewAttachment(null)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="chat__preview-body">
+              {previewAttachment.dataUrl ? (
+                <img src={previewAttachment.dataUrl} alt={previewAttachment.name} />
+              ) : (
+                <div className="chat__preview-file">
+                  <span className="chat__attach-ic chat__attach-ic--lg">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  </span>
+                  <span className="chat__preview-path">{previewAttachment.path}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="chat__messages" ref={scrollRef}>
         {!ready ? (
           <LoginGate />
@@ -1025,7 +1147,7 @@ export const Chat: React.FC = () => {
             />
           )}
           {showCommands && (
-            <div className="chat__cmd-pop">
+            <div className="chat__cmd-pop" ref={cmdPopRef}>
               <div className="chat__cmd-list">
                 {filteredCommands.map((c, i) => (
                   <button
@@ -1048,23 +1170,27 @@ export const Chat: React.FC = () => {
           )}
 
           {showMentions && (
-            <div className="chat__cmd-pop">
+            <div className="chat__cmd-pop" ref={mentionPopRef}>
               <div className="chat__cmd-list">
-                {mentionList.length === 0 && (
+                {mentionLoading && mentionList.length === 0 && (
+                  <div className="chat__cmd-empty">加载文件树…</div>
+                )}
+                {!mentionLoading && mentionList.length === 0 && (
                   <div className="chat__cmd-empty">无匹配项</div>
                 )}
                 {mentionList.map((m, i) => {
-                  const trigger = input.match(/[@#]\S*$/)?.[0]?.[0] || '@';
                   return (
                   <button
                     key={`${m.type}-${m.id}`}
                     type="button"
-                    className={`chat__cmd-item${i === mentionIndex ? ' active' : ''}`}
+                    className={`chat__cmd-item chat__cmd-item--mention${i === mentionIndex ? ' active' : ''}`}
                     onMouseEnter={() => setMentionIndex(i)}
                     onClick={() => applyMention(m)}
                   >
-                    <span className="chat__cmd-cmd">{trigger}{m.name}</span>
-                    <span className="chat__cmd-name">{m.hint || m.type}</span>
+                    <span className="chat__cmd-cmd">
+                      {m.type === 'agent' ? '@' : m.type === 'dir' ? '📁 ' : '📄 '}{m.name}
+                    </span>
+                    <span className="chat__cmd-hint">{m.hint || m.type}</span>
                   </button>
                   );
                 })}
@@ -1083,14 +1209,30 @@ export const Chat: React.FC = () => {
             {attachments.length > 0 && (
               <div className="chat__attach">
                 {attachments.map((a, i) => (
-                  <span key={i} className="chat__attach-chip">
+                  <button
+                    key={i}
+                    type="button"
+                    className="chat__attach-card"
+                    onClick={() => setPreviewAttachment(a)}
+                    title="点击查看"
+                  >
+                    {a.dataUrl ? (
+                      <img className="chat__attach-thumb" src={a.dataUrl} alt={a.name} />
+                    ) : (
+                      <span className="chat__attach-ic">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </span>
+                    )}
                     <span className="chat__attach-name">{a.name}</span>
-                    <button
-                      type="button"
+                    <span
+                      role="button"
+                      tabIndex={0}
                       className="chat__attach-x"
-                      onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
-                    >×</button>
-                  </span>
+                      title="移除"
+                      onClick={(e) => { e.stopPropagation(); setAttachments((prev) => prev.filter((_, j) => j !== i)); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setAttachments((prev) => prev.filter((_, j) => j !== i)); } }}
+                    >×</span>
+                  </button>
                 ))}
               </div>
             )}
@@ -1099,6 +1241,7 @@ export const Chat: React.FC = () => {
               value={input}
               onChange={onInput}
               onKeyDown={onKeyDown}
+              onPaste={onPaste}
               placeholder="Ask anything, / for commands, @ for context..."
               rows={1}
             />
@@ -1110,7 +1253,7 @@ export const Chat: React.FC = () => {
                 </svg>
               </button>
 
-              <div className="chat__select">
+              <div className="chat__select chat__select--hidden">
                 <button
                   data-ai-pop="agents"
                   type="button"
