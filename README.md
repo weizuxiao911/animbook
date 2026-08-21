@@ -20,6 +20,21 @@
 - **拓展分发**: `registry` 后台服务提供支撑
 - **AI 服务**: `opencode` 提供支撑 (单实例, 全局共享)
 
+## 分层思想
+
+> opensumi/codeblitz 是**全局容器**, 负责全局服务接入 + 拓展注册激活.
+
+- **`webapp/src/services/`** — 全局服务接入层 (无 OpenSumi/拓展依赖)
+  - 接入 registry (注册激活拓展)、opencode (AI + sandbox + 文件系统 + Agent 服务实例) 等全局服务
+  - 挂全局实例 (`window.__APP_FS_API__` / `__APP_OPENCODE__` 等), 供内置拓展 + vsix 动态拓展使用
+  - 只提供能力 + 挂全局, 不含 DI/命令/UI
+- **`webapp/src/commands/`** — 服务实例注册层 (给拓展接入使用)
+  - 把 services 的全局实例注册成 OpenSumi 命令/DI contribution
+  - 作为"拓展间通信和使用"的机制: 内置拓展 / vsix 动态拓展通过 commands 的 DI/命令获取服务实例
+- **服务实例获取 (已验证)**: vsix 走 codeblitz in-process ext host (主线程), 可访问
+  `window.__APP_*__` 全局 / `ctx.commands.executeCommand('webapp.fs.*')` / OpenSumi DI
+- **关键规则**: 拓展不直接 import `services/` 的内部函数, 而是通过 commands 暴露的 DI/命令/全局实例使用
+
 ## 启动流程
 
 `npm run dev` (在 `animbook/` 根) 并发拉起三个进程:

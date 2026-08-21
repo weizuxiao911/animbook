@@ -75,6 +75,27 @@ npm run build            # 生产构建 webapp
 | `html` | HTML 预览/编辑 |
 | `binary` | 二进制兜底查看器 |
 
+## 核心架构 (分层思想)
+
+> 设计思想 (勿破坏): opensumi/codeblitz 是**全局容器**, 负责全局服务接入 + 拓展注册激活.
+
+**services/ — 全局服务接入层** (无 OpenSumi/拓展依赖)
+- 容器接入 registry (注册激活拓展)、opencode (AI+sandbox+文件系统+Agent 服务实例) 等全局服务
+- 挂全局实例 (`window.__APP_FS_API__` / `__APP_OPENCODE__` 等), 供内置拓展 + vsix 动态拓展使用
+- 只提供能力 + 挂全局, 不含 DI/命令/UI
+
+**commands/ — 服务实例注册层** (给拓展接入使用)
+- 把 services 的全局实例注册成 OpenSumi 命令/DI contribution
+- 作为"拓展间通信和使用"的机制: 内置拓展 / vsix 动态拓展通过 commands 的 DI/命令获取服务实例
+- 每个能力一个实例, 注册到全局, 支持拓展间互相使用
+
+**服务实例获取 (已验证)**:
+- vsix 走 codeblitz in-process ext host (`IPluginModule.activate(ctx: IPluginAPI)`), **主线程运行**
+- vsix 可访问: `window.__APP_*__` 全局 / `ctx.commands.executeCommand('webapp.fs.*')` / OpenSumi DI
+- 内置拓展: `window.__APP_*__` 或 `useInjectable(token)`
+
+**关键规则**: 拓展不直接 import `services/` 的内部函数, 而是通过 commands 暴露的 DI/命令/全局实例使用.
+
 ## 约定 / 禁忌
 
 - **AGENTS.md 在 webapp/ 内禁止再创建** (用户级 AGENTS.md 已固定在 animbook/AGENTS.md)
