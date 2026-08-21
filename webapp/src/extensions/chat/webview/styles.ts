@@ -365,7 +365,6 @@ export const styles = `
   display: flex; align-items: center; gap: 4px;
 }
 .chat__select { position: relative; min-width: 0; flex: 0 1 auto; }
-.chat__select--hidden { display: none; }
 .chat__bar-spacer { flex: 1; }
 .chat__bar-btn {
   display: inline-flex; align-items: center; gap: 5px;

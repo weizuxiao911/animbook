@@ -9,13 +9,11 @@
 
 export const APP_CHAT_CONFIG = {
   brand: {
-    name: 'webapp',
+    name: '魔法书 AnimBook',
     nameZh: '魔法书',
     tagline: '让知识动起来 🎉',
     greeting: '你好，我是 {nameZh}',
-    loginHint: '与 {nameZh} 一起，开启智能阅读',
-    loginButton: '登录 →',
-    logoChar: 'A',
+    logoChar: '✦',
   },
   suggestions: [
     { icon: '🚀', title: '帮我完成一个任务', desc: '告诉我目标，拆解并执行', prompt: '帮我完成一个任务' },

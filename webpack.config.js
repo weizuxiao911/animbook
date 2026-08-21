@@ -178,6 +178,7 @@ module.exports = () => ({
   plugins: [
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, 'webapp/src/index.html'),
+      favicon: path.resolve(__dirname, 'webapp/src/assets/favicon.ico'),
     }),
     new Dotenv({
       path: path.resolve(__dirname, `.env.${process.env.DEPLOY_ENV || 'development'}`),

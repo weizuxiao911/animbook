@@ -1261,7 +1261,7 @@ export const Chat: React.FC = () => {
                 </svg>
               </button>
 
-              <div className="chat__select chat__select--hidden">
+              <div className="chat__select">
                 <button
                   data-ai-pop="agents"
                   type="button"
