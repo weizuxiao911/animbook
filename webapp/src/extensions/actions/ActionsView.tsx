@@ -77,11 +77,22 @@ export const ActionsView: React.FC = () => {
       { slot: SlotLocation.bottom, setter: setBottomVisible },
     ];
     const disposables: { dispose(): void }[] = [];
+    let rightWasVisible = layoutService.isVisible(SlotLocation.right);
     slots.forEach(({ slot, setter }) => {
       const service = layoutService.getTabbarService(slot);
       const syncFn = sync(slot, setter);
       syncFn();
-      disposables.push(service.onCurrentChange(syncFn));
+      disposables.push(service.onCurrentChange((e: any) => {
+        syncFn();
+        // right 面板被激活 (从隐藏 → 显示) 时通知 chat 自动聚焦输入框
+        if (slot === SlotLocation.right) {
+          const nowVisible = !!e?.currentId;
+          if (nowVisible && !rightWasVisible) {
+            window.dispatchEvent(new CustomEvent('chat:ai-reveal'));
+          }
+          rightWasVisible = nowVisible;
+        }
+      }));
       disposables.push(service.onSizeChange(syncFn));
     });
     return () => {
